@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import type { Api } from "./api";
-import { mockApi } from "./mockApi";
+import { backendApi, type Api } from "./api";
 import type { User } from "./types";
 
 interface ServicesContextValue {
@@ -12,7 +11,7 @@ interface ServicesContextValue {
 
 const ServicesContext = createContext<ServicesContextValue | null>(null);
 
-export function ServicesProvider({ children, api = mockApi }: { children: ReactNode; api?: Api }) {
+export function ServicesProvider({ children, api = backendApi }: { children: ReactNode; api?: Api }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
