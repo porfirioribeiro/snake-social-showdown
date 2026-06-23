@@ -39,6 +39,12 @@ def bearer_token(response) -> str:
     return header.removeprefix("Bearer ")
 
 
+def test_health_endpoint(client: TestClient) -> None:
+    response = client.get("/api/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
 def test_seeded_active_games_and_leaderboard_are_available(client: TestClient) -> None:
     active = client.get("/api/games/active")
     assert active.status_code == 200

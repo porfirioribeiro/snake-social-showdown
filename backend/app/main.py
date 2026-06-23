@@ -36,6 +36,10 @@ def create_app() -> FastAPI:
             headers=exc.headers,
         )
 
+    @app.get("/api/health", tags=["Health"])
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
+
     app.include_router(auth.router, prefix="/api")
     app.include_router(games.router, prefix="/api")
     app.include_router(scores.router, prefix="/api")
