@@ -13,9 +13,14 @@ frontend:
 dev:
 	@backend_pid=""; \
 	frontend_pid=""; \
+	set -m; \
 	cleanup() { \
-		if [ -n "$$backend_pid" ]; then kill "$$backend_pid" 2>/dev/null || true; fi; \
-		if [ -n "$$frontend_pid" ]; then kill "$$frontend_pid" 2>/dev/null || true; fi; \
+		trap - INT TERM EXIT; \
+		if [ -n "$$backend_pid" ]; then kill -TERM -$$backend_pid 2>/dev/null || kill "$$backend_pid" 2>/dev/null || true; fi; \
+		if [ -n "$$frontend_pid" ]; then kill -TERM -$$frontend_pid 2>/dev/null || kill "$$frontend_pid" 2>/dev/null || true; fi; \
+		sleep 1; \
+		if [ -n "$$backend_pid" ]; then kill -KILL -$$backend_pid 2>/dev/null || true; fi; \
+		if [ -n "$$frontend_pid" ]; then kill -KILL -$$frontend_pid 2>/dev/null || true; fi; \
 		wait 2>/dev/null || true; \
 	}; \
 	trap cleanup INT TERM EXIT; \
