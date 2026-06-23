@@ -1,6 +1,7 @@
 CONTAINER ?= docker
 IMAGE_NAME ?= snake-social-showdown
 PORT ?= 8000
+DB_PATH ?= $(CURDIR)/backend/snake.db
 
 .PHONY: install backend frontend dev backend-tests frontend-tests test test-integration build docker-build docker-run docker
 
@@ -34,11 +35,12 @@ build:
 docker-build:
 	$(CONTAINER) build -t $(IMAGE_NAME) .
 
-docker-run: build
+docker-run:
 	$(CONTAINER) run --rm -it \
 		-p $(PORT):8000 \
 		-v $(CURDIR)/backend/app:/app/app \
 		-v $(CURDIR)/backend/main.py:/app/main.py \
+		-v $(DB_PATH):/app/snake.db \
 		-v $(CURDIR)/frontend/dist/client:/app/static \
 		$(IMAGE_NAME)
 
