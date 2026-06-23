@@ -1,0 +1,513 @@
+openapi: 3.1.0
+info:
+  title: Snake Social Showdown API
+  version: 0.1.0
+  description: Backend contract expected by the frontend Api interface in frontend/src/services/api.ts.
+servers:
+  - url: /api
+security: []
+tags:
+  - name: Auth
+  - name: Games
+  - name: Scores
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Authenticated browser session cookie.
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          examples:
+            - Not authenticated
+    GameMode:
+      type: string
+      enum:
+        - walls
+        - wrap
+    User:
+      type: object
+      required:
+        - id
+        - username
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+    Credentials:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+          format: password
+    SignupRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 4
+          format: password
+    CreateGameRequest:
+      type: object
+      required:
+        - mode
+      properties:
+        mode:
+          $ref: "#/components/schemas/GameMode"
+    SubmitScoreRequest:
+      type: object
+      required:
+        - score
+        - mode
+      properties:
+        score:
+          type: integer
+          minimum: 0
+        mode:
+          $ref: "#/components/schemas/GameMode"
+    Cell:
+      type: object
+      required:
+        - x
+        - y
+      properties:
+        x:
+          type: integer
+        y:
+          type: integer
+    GameState:
+      type: object
+      required:
+        - id
+        - userId
+        - username
+        - mode
+        - width
+        - height
+        - snake
+        - food
+        - dir
+        - score
+        - alive
+        - startedAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        username:
+          type: string
+        mode:
+          $ref: "#/components/schemas/GameMode"
+        width:
+          type: integer
+          minimum: 1
+        height:
+          type: integer
+          minimum: 1
+        snake:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/Cell"
+        food:
+          $ref: "#/components/schemas/Cell"
+        dir:
+          $ref: "#/components/schemas/Cell"
+        score:
+          type: integer
+          minimum: 0
+        alive:
+          type: boolean
+        startedAt:
+          type: integer
+          format: int64
+          description: Unix timestamp in milliseconds.
+        updatedAt:
+          type: integer
+          format: int64
+          description: Unix timestamp in milliseconds.
+    NullableGameState:
+      oneOf:
+        - $ref: "#/components/schemas/GameState"
+        - type: "null"
+    ActiveGameSummary:
+      type: object
+      required:
+        - id
+        - username
+        - mode
+        - score
+        - alive
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        mode:
+          $ref: "#/components/schemas/GameMode"
+        score:
+          type: integer
+          minimum: 0
+        alive:
+          type: boolean
+    ScoreEntry:
+      type: object
+      required:
+        - id
+        - userId
+        - username
+        - mode
+        - score
+        - createdAt
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        username:
+          type: string
+        mode:
+          $ref: "#/components/schemas/GameMode"
+        score:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: integer
+          format: int64
+          description: Unix timestamp in milliseconds.
+    ActiveGamesEvent:
+      type: object
+      required:
+        - type
+        - games
+      properties:
+        type:
+          type: string
+          const: active-games
+        games:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActiveGameSummary"
+    GameStateEvent:
+      type: object
+      required:
+        - type
+        - game
+      properties:
+        type:
+          type: string
+          const: game-state
+        game:
+          $ref: "#/components/schemas/GameState"
+  responses:
+    BadRequest:
+      description: Invalid request body or query parameters.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Authentication is required for this endpoint.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+paths:
+  /auth/me:
+    get:
+      tags:
+        - Auth
+      operationId: getCurrentUser
+      summary: Get the current signed-in user.
+      description: Does not require authentication; returns null when no browser session is active.
+      responses:
+        "200":
+          description: The current user, or null when signed out.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/User"
+                  - type: "null"
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      operationId: login
+      summary: Sign in with a username and password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Credentials"
+      responses:
+        "200":
+          description: The signed-in user.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: Session cookie for subsequent authenticated requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: Invalid username or password.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /auth/signup:
+    post:
+      tags:
+        - Auth
+      operationId: signup
+      summary: Create an account and sign in.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+      responses:
+        "200":
+          description: The created and signed-in user.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: Session cookie for subsequent authenticated requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid username or password, or username already taken.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /auth/logout:
+    post:
+      tags:
+        - Auth
+      operationId: logout
+      summary: Sign out.
+      description: Clears the active browser session if one exists.
+      responses:
+        "204":
+          description: Signed out. No response body.
+  /games:
+    post:
+      tags:
+        - Games
+      operationId: createGame
+      summary: Create a game for the signed-in user.
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGameRequest"
+      responses:
+        "200":
+          description: The newly created game state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameState"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /games/active:
+    get:
+      tags:
+        - Games
+      operationId: listActiveGames
+      summary: List active games.
+      responses:
+        "200":
+          description: Active games visible to spectators.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActiveGameSummary"
+  /games/active/events:
+    get:
+      tags:
+        - Games
+      operationId: subscribeActiveGames
+      summary: Subscribe to active game list updates.
+      description: Server-sent events stream for live spectator list updates. Each event data payload is an ActiveGamesEvent JSON object.
+      responses:
+        "200":
+          description: Stream of active game list events.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              examples:
+                activeGames:
+                  summary: Active game list event.
+                  value: |
+                    event: active-games
+                    data: {"type":"active-games","games":[{"id":"abc123","username":"alice","mode":"walls","score":4,"alive":true}]}
+  /games/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags:
+        - Games
+      operationId: getGame
+      summary: Get a game by id.
+      description: Returns null when the frontend should treat the game as missing.
+      responses:
+        "200":
+          description: The game state, or null if it does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NullableGameState"
+    put:
+      tags:
+        - Games
+      operationId: updateGame
+      summary: Replace the latest state for a game.
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GameState"
+      responses:
+        "204":
+          description: Game state updated. No response body.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /games/{id}/events:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags:
+        - Games
+      operationId: subscribeGame
+      summary: Subscribe to updates for one game.
+      description: Server-sent events stream for live game-state updates. Each event data payload is a GameStateEvent JSON object.
+      responses:
+        "200":
+          description: Stream of game state events.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              examples:
+                gameState:
+                  summary: Game state event.
+                  value: |
+                    event: game-state
+                    data: {"type":"game-state","game":{"id":"abc123","userId":"u1","username":"alice","mode":"walls","width":20,"height":20,"snake":[{"x":10,"y":10}],"food":{"x":4,"y":7},"dir":{"x":1,"y":0},"score":0,"alive":true,"startedAt":1710000000000,"updatedAt":1710000000000}}
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /scores:
+    post:
+      tags:
+        - Scores
+      operationId: submitScore
+      summary: Submit a completed game score for the signed-in user.
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitScoreRequest"
+      responses:
+        "204":
+          description: Score saved. No response body.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /leaderboard:
+    get:
+      tags:
+        - Scores
+      operationId: getLeaderboard
+      summary: Get top scores by game mode.
+      parameters:
+        - name: mode
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/GameMode"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 10
+      responses:
+        "200":
+          description: Leaderboard entries sorted by descending score.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScoreEntry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
