@@ -38,6 +38,18 @@ type GameUpdateEvent = {
   game: GameState;
 };
 
+type GameDeletedEvent = {
+  type: "game-deleted";
+  gameId: string;
+};
+
+type LiveEvent = ActiveGamesEvent | GameStateEvent | GameDeletedEvent;
+
+type LiveMessage =
+  | { type: "subscribe-active" }
+  | { type: "subscribe-game"; gameId: string }
+  | GameUpdateEvent;
+
 const TOKEN_STORAGE_KEY = "snake.backend.token";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -63,11 +75,11 @@ function parseBearer(header: string | null) {
 
 export class BackendApi implements Api {
   private readonly baseUrl: string;
-  private readonly gameUpdateSockets = new Map<string, WebSocket>();
-  private readonly pendingGameUpdates = new Map<string, GameUpdateEvent[]>();
+  private readonly live: LiveSocket;
 
   constructor(baseUrl = API_BASE_URL) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
+    this.live = new LiveSocket(this.wsUrl.bind(this), storedToken);
   }
 
   async getCurrentUser(): Promise<User | null> {
@@ -101,11 +113,10 @@ export class BackendApi implements Api {
   }
 
   async updateGame(state: GameState): Promise<void> {
-    this.sendGameUpdate(state);
+    this.live.sendGameUpdate(state);
   }
 
   async abandonGame(id: string): Promise<void> {
-    this.closeGameUpdateSocket(id);
     await this.request<void>(`/games/${encodeURIComponent(id)}/abandon`, {
       method: "POST",
       keepalive: true,
@@ -121,22 +132,11 @@ export class BackendApi implements Api {
   }
 
   subscribeGame(id: string, cb: (s: GameState) => void, onDone?: () => void): () => void {
-    return this.subscribeLive<GameStateEvent | { type: "game-deleted"; gameId: string }>(
-      `/games/${encodeURIComponent(id)}/ws`,
-      (event) => {
-        if (event.type === "game-state") cb(event.game);
-        if (event.type === "game-deleted") onDone?.();
-      }
-    );
+    return this.live.subscribeGame(id, cb, onDone);
   }
 
   subscribeActiveGames(cb: (list: ActiveGameSummary[]) => void): () => void {
-    return this.subscribeLive<ActiveGamesEvent>(
-      "/games/active/ws",
-      (event) => {
-        if (event.type === "active-games") cb(event.games);
-      }
-    );
+    return this.live.subscribeActiveGames(cb);
   }
 
   async submitScore(score: number, mode: GameMode): Promise<void> {
@@ -172,7 +172,12 @@ export class BackendApi implements Api {
 
   private async request<T>(
     path: string,
-    options: { method?: string; body?: JsonBody; query?: Record<string, string>; keepalive?: boolean } = {},
+    options: {
+      method?: string;
+      body?: JsonBody;
+      query?: Record<string, string>;
+      keepalive?: boolean;
+    } = {},
   ): Promise<T> {
     const headers = new Headers();
     const token = storedToken();
@@ -208,78 +213,130 @@ export class BackendApi implements Api {
     }
     return response.statusText || "Request failed";
   }
+}
 
-  private subscribeLive<T>(
-    path: string,
-    onEvent: (event: T) => void,
-  ): () => void {
-    if (typeof WebSocket === "undefined") {
-      return () => undefined;
-    }
+type GameListener = {
+  onState: (state: GameState) => void;
+  onDone?: () => void;
+};
 
-    const socket = new WebSocket(this.wsUrl(path));
-    socket.onmessage = (message: MessageEvent<string>) => {
-      onEvent(JSON.parse(message.data) as T);
-    };
-    socket.onclose = () => {
-      socket.onmessage = null;
-    };
+class LiveSocket {
+  private socket: WebSocket | null = null;
+  private token: string | null = null;
+  private readonly activeListeners = new Set<(list: ActiveGameSummary[]) => void>();
+  private readonly gameListeners = new Map<string, Set<GameListener>>();
+  private readonly pendingMessages: LiveMessage[] = [];
+
+  constructor(
+    private readonly wsUrl: (path: string, query?: Record<string, string>) => string,
+    private readonly currentToken: () => string | null,
+  ) {}
+
+  subscribeActiveGames(cb: (list: ActiveGameSummary[]) => void): () => void {
+    this.activeListeners.add(cb);
+    this.ensureSocket();
+    this.sendIfOpen({ type: "subscribe-active" });
     return () => {
-      socket.close();
+      this.activeListeners.delete(cb);
+      this.closeIfIdle();
     };
   }
 
-  private sendGameUpdate(state: GameState) {
-    const event: GameUpdateEvent = { type: "game-update", game: state };
-    const socket = this.gameUpdateSocket(state.id);
+  subscribeGame(id: string, onState: (state: GameState) => void, onDone?: () => void): () => void {
+    const listener: GameListener = { onState, onDone };
+    const listeners = this.gameListeners.get(id) ?? new Set<GameListener>();
+    listeners.add(listener);
+    this.gameListeners.set(id, listeners);
+    this.ensureSocket();
+    this.sendIfOpen({ type: "subscribe-game", gameId: id });
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) this.gameListeners.delete(id);
+      this.closeIfIdle();
+    };
+  }
 
-    if (socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify(event));
-      if (!state.alive) this.closeGameUpdateSocket(state.id);
+  sendGameUpdate(state: GameState) {
+    this.send({ type: "game-update", game: state });
+  }
+
+  private ensureSocket() {
+    if (typeof WebSocket === "undefined") {
       return;
     }
 
-    const pending = this.pendingGameUpdates.get(state.id) ?? [];
-    pending.push(event);
-    this.pendingGameUpdates.set(state.id, pending);
-  }
-
-  private gameUpdateSocket(gameId: string) {
-    const existing = this.gameUpdateSockets.get(gameId);
-    if (existing && existing.readyState !== WebSocket.CLOSING && existing.readyState !== WebSocket.CLOSED) {
-      return existing;
+    const token = this.currentToken();
+    if (
+      this.socket &&
+      this.token === token &&
+      this.socket.readyState !== WebSocket.CLOSING &&
+      this.socket.readyState !== WebSocket.CLOSED
+    ) {
+      return;
     }
 
-    const token = storedToken();
-    const socket = new WebSocket(
-      this.wsUrl(`/games/${encodeURIComponent(gameId)}/ws`, token ? { token } : undefined),
-    );
-    this.gameUpdateSockets.set(gameId, socket);
+    if (this.socket) {
+      this.socket.close();
+    }
+
+    const socket = new WebSocket(this.wsUrl("/games/ws", token ? { token } : undefined));
+    this.socket = socket;
+    this.token = token;
 
     socket.onopen = () => {
-      const pending = this.pendingGameUpdates.get(gameId) ?? [];
-      this.pendingGameUpdates.delete(gameId);
-      for (const event of pending) {
-        socket.send(JSON.stringify(event));
+      if (this.activeListeners.size > 0) {
+        socket.send(JSON.stringify({ type: "subscribe-active" } satisfies LiveMessage));
       }
-      if (pending.some((event) => !event.game.alive)) this.closeGameUpdateSocket(gameId);
+      for (const gameId of this.gameListeners.keys()) {
+        socket.send(JSON.stringify({ type: "subscribe-game", gameId } satisfies LiveMessage));
+      }
+      for (const message of this.pendingMessages.splice(0)) {
+        socket.send(JSON.stringify(message));
+      }
+    };
+
+    socket.onmessage = (message: MessageEvent<string>) => {
+      this.handleEvent(JSON.parse(message.data) as LiveEvent);
     };
 
     socket.onclose = () => {
-      if (this.gameUpdateSockets.get(gameId) === socket) {
-        this.gameUpdateSockets.delete(gameId);
-      }
+      if (this.socket === socket) this.socket = null;
     };
-
-    return socket;
   }
 
-  private closeGameUpdateSocket(gameId: string) {
-    this.pendingGameUpdates.delete(gameId);
-    const socket = this.gameUpdateSockets.get(gameId);
-    this.gameUpdateSockets.delete(gameId);
-    if (socket && socket.readyState !== WebSocket.CLOSED) {
-      window.setTimeout(() => socket.close(), 0);
+  private send(message: LiveMessage) {
+    this.ensureSocket();
+    if (this.sendIfOpen(message)) {
+      return;
+    }
+    this.pendingMessages.push(message);
+  }
+
+  private sendIfOpen(message: LiveMessage) {
+    if (this.socket?.readyState !== WebSocket.OPEN) return false;
+    this.socket.send(JSON.stringify(message));
+    return true;
+  }
+
+  private handleEvent(event: LiveEvent) {
+    if (event.type === "active-games") {
+      this.activeListeners.forEach((cb) => cb(event.games));
+      return;
+    }
+
+    if (event.type === "game-state") {
+      this.gameListeners.get(event.game.id)?.forEach((listener) => listener.onState(event.game));
+      return;
+    }
+
+    this.gameListeners.get(event.gameId)?.forEach((listener) => listener.onDone?.());
+  }
+
+  private closeIfIdle() {
+    if (this.activeListeners.size > 0 || this.gameListeners.size > 0) return;
+    if (this.pendingMessages.length > 0) return;
+    if (this.socket && this.socket.readyState !== WebSocket.CLOSED) {
+      this.socket.close();
     }
   }
 }

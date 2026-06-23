@@ -57,7 +57,7 @@ describe("BackendApi", () => {
 
     expect(fetch).not.toHaveBeenCalled();
     expect(sockets).toHaveLength(1);
-    expect(sockets[0].url).toBe("ws://api.test/api/games/game-1/ws");
+    expect(sockets[0].url).toBe("ws://api.test/api/games/ws");
 
     sockets[0].open();
 

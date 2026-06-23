@@ -11,8 +11,10 @@ class LiveHub:
         self.game_clients: dict[str, set[WebSocket]] = defaultdict(set)
         self.active_clients: set[WebSocket] = set()
 
-    async def connect_game(self, game_id: str, websocket: WebSocket) -> None:
+    async def connect(self, websocket: WebSocket) -> None:
         await websocket.accept()
+
+    def subscribe_game(self, game_id: str, websocket: WebSocket) -> None:
         self.game_clients[game_id].add(websocket)
 
     def disconnect_game(self, game_id: str, websocket: WebSocket) -> None:
@@ -23,12 +25,16 @@ class LiveHub:
         if not clients:
             self.game_clients.pop(game_id, None)
 
-    async def connect_active(self, websocket: WebSocket) -> None:
-        await websocket.accept()
+    def subscribe_active(self, websocket: WebSocket) -> None:
         self.active_clients.add(websocket)
 
     def disconnect_active(self, websocket: WebSocket) -> None:
         self.active_clients.discard(websocket)
+
+    def disconnect(self, websocket: WebSocket) -> None:
+        self.disconnect_active(websocket)
+        for game_id in tuple(self.game_clients):
+            self.disconnect_game(game_id, websocket)
 
     async def broadcast_game_state(self, game: GameState) -> None:
         await self._broadcast_game(

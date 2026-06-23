@@ -59,12 +59,16 @@ without changing the route handlers.
 
 Live games use WebSockets for play updates and spectator events:
 
-- `ws://localhost:8000/api/games/active/ws` streams `active-games` messages.
-- `ws://localhost:8000/api/games/{id}/ws` accepts owner `game-update`
-  messages and streams `game-state` and `game-deleted` messages.
+- `ws://localhost:8000/api/games/ws` is the single live channel.
+- Send `subscribe-active` to stream `active-games` messages.
+- Send `subscribe-game` with a `gameId` to stream `game-state` and
+  `game-deleted` messages for that game.
+- Authenticated owners send `game-update` messages on the same socket.
 
-The REST game endpoints create and abandon games. In-game state changes travel
-over the game WebSocket.
+The REST game endpoints create and abandon games. Normal game-over state
+changes travel over the WebSocket as `game-update` messages with `alive=false`;
+the abandon endpoint remains for navigation, tab close, and page lifecycle
+cleanup.
 
 ### Test
 

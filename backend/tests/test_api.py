@@ -103,7 +103,8 @@ def test_authenticated_user_can_create_update_and_submit_score(client: TestClien
     assert game["username"] == "alice"
     assert game["mode"] == "wrap"
 
-    with client.websocket_connect(f"/api/games/{game['id']}/ws") as websocket:
+    with client.websocket_connect(f"/api/games/ws?token={token}") as websocket:
+        websocket.send_json({"type": "subscribe-game", "gameId": game["id"]})
         assert websocket.receive_json()["type"] == "game-state"
         game["score"] = 99
         websocket.send_json({"type": "game-update", "game": game})
@@ -153,7 +154,8 @@ def test_dead_game_update_removes_it_from_live_games(client: TestClient) -> None
     created = client.post("/api/games", json={"mode": "walls"}, headers=headers)
     game = created.json()
 
-    with client.websocket_connect(f"/api/games/{game['id']}/ws") as websocket:
+    with client.websocket_connect(f"/api/games/ws?token={bearer_token(login)}") as websocket:
+        websocket.send_json({"type": "subscribe-game", "gameId": game["id"]})
         assert websocket.receive_json()["type"] == "game-state"
         game["alive"] = False
         websocket.send_json({"type": "game-update", "game": game})
@@ -170,7 +172,8 @@ def test_game_websocket_streams_live_updates_and_deletion(client: TestClient) ->
     headers = {"Authorization": f"Bearer {bearer_token(login)}"}
     game = client.post("/api/games", json={"mode": "walls"}, headers=headers).json()
 
-    with client.websocket_connect(f"/api/games/{game['id']}/ws") as websocket:
+    with client.websocket_connect(f"/api/games/ws?token={bearer_token(login)}") as websocket:
+        websocket.send_json({"type": "subscribe-game", "gameId": game["id"]})
         initial = websocket.receive_json()
         assert initial["type"] == "game-state"
         assert initial["game"]["id"] == game["id"]
@@ -191,7 +194,8 @@ def test_active_games_websocket_streams_list_changes(client: TestClient) -> None
     login = client.post("/api/auth/login", json={"username": "alice", "password": "password"})
     headers = {"Authorization": f"Bearer {bearer_token(login)}"}
 
-    with client.websocket_connect("/api/games/active/ws") as websocket:
+    with client.websocket_connect("/api/games/ws") as websocket:
+        websocket.send_json({"type": "subscribe-active"})
         initial = websocket.receive_json()
         assert initial == {"type": "active-games", "games": []}
 

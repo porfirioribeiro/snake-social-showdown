@@ -16,6 +16,13 @@ def current_user_from_websocket(websocket: WebSocket, store: Store) -> User | No
     return store.user_for_token(token) if token else None
 
 
+def active_games_event(store: Store) -> dict:
+    return {
+        "type": "active-games",
+        "games": [game.model_dump(mode="json") for game in store.active_games()],
+    }
+
+
 @router.post("", response_model=GameState)
 async def create_game(
     payload: CreateGameRequest,
@@ -36,24 +43,6 @@ def list_active_games(store: Store = Depends(get_store)) -> list[ActiveGameSumma
     return store.active_games()
 
 
-@router.websocket("/active/ws")
-async def active_games_ws(websocket: WebSocket, store: Store = Depends(get_store)) -> None:
-    await live_hub.connect_active(websocket)
-    try:
-        await websocket.send_json(
-            {
-                "type": "active-games",
-                "games": [game.model_dump(mode="json") for game in store.active_games()],
-            }
-        )
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        pass
-    finally:
-        live_hub.disconnect_active(websocket)
-
-
 @router.get("/{game_id}", response_model=GameState | None)
 def get_game(game_id: str, store: Store = Depends(get_store)) -> GameState | None:
     return store.get_game(game_id)
@@ -71,46 +60,65 @@ async def abandon_game(
         await live_hub.broadcast_active_games(store.active_games())
 
 
-@router.websocket("/{game_id}/ws")
-async def game_ws(game_id: str, websocket: WebSocket, store: Store = Depends(get_store)) -> None:
-    game = store.get_game(game_id)
-    if game is None:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
-
-    await live_hub.connect_game(game_id, websocket)
+@router.websocket("/ws")
+async def games_ws(websocket: WebSocket, store: Store = Depends(get_store)) -> None:
+    await live_hub.connect(websocket)
     try:
-        await websocket.send_json({"type": "game-state", "game": game.model_dump(mode="json")})
         while True:
             raw = await websocket.receive_text()
             try:
                 message = json.loads(raw)
-                if message.get("type") != "game-update":
-                    continue
+            except json.JSONDecodeError:
+                await websocket.close(code=status.WS_1003_UNSUPPORTED_DATA)
+                return
+
+            message_type = message.get("type") if isinstance(message, dict) else None
+
+            if message_type == "subscribe-active":
+                live_hub.subscribe_active(websocket)
+                await websocket.send_json(active_games_event(store))
+                continue
+
+            if message_type == "subscribe-game":
+                game_id = message.get("gameId")
+                if not isinstance(game_id, str):
+                    await websocket.close(code=status.WS_1003_UNSUPPORTED_DATA)
+                    return
+                live_hub.subscribe_game(game_id, websocket)
+                game = store.get_game(game_id)
+                if game is None:
+                    await websocket.send_json({"type": "game-deleted", "gameId": game_id})
+                else:
+                    await websocket.send_json({"type": "game-state", "game": game.model_dump(mode="json")})
+                continue
+
+            if message_type != "game-update":
+                continue
+
+            try:
                 state = GameState.model_validate(message.get("game"))
-            except (json.JSONDecodeError, AttributeError, ValidationError):
+            except (AttributeError, ValidationError):
                 await websocket.close(code=status.WS_1003_UNSUPPORTED_DATA)
                 return
 
             current_user = current_user_from_websocket(websocket, store)
-            existing = store.get_game(game_id)
+            existing = store.get_game(state.id)
             if (
                 current_user is None
                 or existing is None
-                or state.id != game_id
                 or existing.userId != current_user.id
                 or state.userId != current_user.id
             ):
                 await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
                 return
 
-            updated = store.update_game(game_id, state)
+            updated = store.update_game(state.id, state)
             if updated is None:
-                await live_hub.broadcast_game_deleted(game_id)
+                await live_hub.broadcast_game_deleted(state.id)
             else:
                 await live_hub.broadcast_game_state(updated)
             await live_hub.broadcast_active_games(store.active_games())
     except WebSocketDisconnect:
         pass
     finally:
-        live_hub.disconnect_game(game_id, websocket)
+        live_hub.disconnect(websocket)

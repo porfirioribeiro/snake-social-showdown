@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Snake Social Showdown API
   version: 0.1.0
-  description: Backend contract expected by the frontend Api interface in frontend/src/services/api.ts. Live game updates use WebSockets at /api/games/active/ws and /api/games/{id}/ws; those channels emit the event schemas documented here.
+  description: Backend contract expected by the frontend Api interface in frontend/src/services/api.ts. Live game updates use one WebSocket at /api/games/ws; clients subscribe to active games or individual game ids over that channel.
 servers:
   - url: /api
 security: []
@@ -208,6 +208,25 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ActiveGameSummary"
+    SubscribeActiveGamesEvent:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          const: subscribe-active
+    SubscribeGameEvent:
+      type: object
+      required:
+        - type
+        - gameId
+      properties:
+        type:
+          type: string
+          const: subscribe-game
+        gameId:
+          type: string
     GameStateEvent:
       type: object
       required:
@@ -375,17 +394,34 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+  /games/ws:
+    get:
+      tags:
+        - Games
+      operationId: gamesWebSocket
+      summary: Live game WebSocket.
+      description: Connect to ws(s)://<host>/api/games/ws. Send SubscribeActiveGamesEvent to receive ActiveGamesEvent messages, send SubscribeGameEvent to receive GameStateEvent and GameDeletedEvent messages for a game, and send authenticated GameUpdateEvent messages as the owner. Game-over updates are sent as GameUpdateEvent with alive=false; the REST abandon endpoint remains for navigation and page lifecycle cleanup.
+      x-websocket:
+        path: /games/ws
+        messages:
+          inbound:
+            - $ref: "#/components/schemas/SubscribeActiveGamesEvent"
+            - $ref: "#/components/schemas/SubscribeGameEvent"
+            - $ref: "#/components/schemas/GameUpdateEvent"
+          outbound:
+            - $ref: "#/components/schemas/ActiveGamesEvent"
+            - $ref: "#/components/schemas/GameStateEvent"
+            - $ref: "#/components/schemas/GameDeletedEvent"
+      responses:
+        "101":
+          description: WebSocket protocol upgrade.
   /games/active:
     get:
       tags:
         - Games
       operationId: listActiveGames
       summary: List active games.
-      description: For live updates, connect to ws(s)://<host>/api/games/active/ws. The socket immediately sends and then broadcasts ActiveGamesEvent JSON messages.
-      x-websocket:
-        path: /games/active/ws
-        messages:
-          - $ref: "#/components/schemas/ActiveGamesEvent"
+      description: For live updates, connect to ws(s)://<host>/api/games/ws and send SubscribeActiveGamesEvent. The socket responds with and then broadcasts ActiveGamesEvent JSON messages.
       responses:
         "200":
           description: Active games visible to spectators.
@@ -407,15 +443,7 @@ paths:
         - Games
       operationId: getGame
       summary: Get a game by id.
-      description: Returns null when the frontend should treat the game as missing. For live play and spectating, connect to ws(s)://<host>/api/games/{id}/ws. The socket immediately sends the current GameStateEvent, accepts authenticated owner GameUpdateEvent messages, and broadcasts GameStateEvent or GameDeletedEvent JSON messages.
-      x-websocket:
-        path: /games/{id}/ws
-        messages:
-          inbound:
-            - $ref: "#/components/schemas/GameUpdateEvent"
-          outbound:
-            - $ref: "#/components/schemas/GameStateEvent"
-            - $ref: "#/components/schemas/GameDeletedEvent"
+      description: Returns null when the frontend should treat the game as missing. For live play and spectating, connect to ws(s)://<host>/api/games/ws and send SubscribeGameEvent for this id. The socket sends the current GameStateEvent, accepts authenticated owner GameUpdateEvent messages, and broadcasts GameStateEvent or GameDeletedEvent JSON messages.
       responses:
         "200":
           description: The game state, or null if it does not exist.
