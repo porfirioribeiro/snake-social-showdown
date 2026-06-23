@@ -1,3 +1,5 @@
+use rand::Rng;
+
 use axum::{
     extract::FromRequestParts,
     http::{request::Parts, StatusCode},
@@ -62,6 +64,6 @@ impl FromRequestParts<AppState> for RequiredUser {
 
 pub fn create_token() -> String {
     let mut bytes = [0u8; 32];
-    rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut bytes);
+    rand::rng().fill_bytes(&mut bytes);
     hex::encode(bytes)
 }

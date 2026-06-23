@@ -1,6 +1,7 @@
 use hmac::Hmac;
+use rand::Rng;
 use pbkdf2::pbkdf2;
-use rand::RngCore;
+
 use sha2::Sha256;
 use subtle::ConstantTimeEq;
 
@@ -8,7 +9,7 @@ const ITERATIONS: u32 = 210_000;
 
 pub fn hash_password(password: &str) -> String {
     let mut salt = [0u8; 16];
-    rand::thread_rng().fill_bytes(&mut salt);
+    rand::rng().fill_bytes(&mut salt);
     let salt_hex = hex::encode(salt);
     let digest_hex = derive(password, &salt);
     format!("pbkdf2_sha256${ITERATIONS}${salt_hex}${digest_hex}")
