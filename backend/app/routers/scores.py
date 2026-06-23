@@ -13,7 +13,7 @@ def submit_score(
     current_user: User = Depends(require_current_user),
     store: Store = Depends(get_store),
 ) -> None:
-    store.scores.append(
+    store.add_score(
         ScoreEntry(
             id=new_id("score"),
             userId=current_user.id,

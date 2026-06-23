@@ -10,21 +10,20 @@ from app.store import Store, get_store
 
 @pytest.fixture()
 def client() -> Generator[TestClient]:
-    store = Store()
+    store = Store("sqlite:///:memory:")
     alice = store.add_user("alice", hash_password("password"), "u_alice")
     bruno = store.add_user("bruno", hash_password("password"), "u_bruno")
     from app.models import GameMode, ScoreEntry
     from app.store import make_game
 
-    store.games["game_alice"] = make_game(alice, GameMode.walls, game_id="game_alice", score=7)
-    store.games["game_bruno"] = make_game(bruno, GameMode.wrap, game_id="game_bruno", score=11)
-    store.scores.extend(
-        [
-            ScoreEntry(id="s1", userId=alice.id, username=alice.username, mode=GameMode.walls, score=12, createdAt=1),
-            ScoreEntry(id="s2", userId=bruno.id, username=bruno.username, mode=GameMode.walls, score=30, createdAt=2),
-            ScoreEntry(id="s3", userId=alice.id, username=alice.username, mode=GameMode.wrap, score=20, createdAt=3),
-        ]
-    )
+    store.create_game(make_game(alice, GameMode.walls, game_id="game_alice", score=7))
+    store.create_game(make_game(bruno, GameMode.wrap, game_id="game_bruno", score=11))
+    for score in [
+        ScoreEntry(id="s1", userId=alice.id, username=alice.username, mode=GameMode.walls, score=12, createdAt=1),
+        ScoreEntry(id="s2", userId=bruno.id, username=bruno.username, mode=GameMode.walls, score=30, createdAt=2),
+        ScoreEntry(id="s3", userId=alice.id, username=alice.username, mode=GameMode.wrap, score=20, createdAt=3),
+    ]:
+        store.add_score(score)
 
     app = create_app()
     app.dependency_overrides[get_store] = lambda: store
@@ -119,3 +118,16 @@ def test_validation_errors_use_error_response_shape(client: TestClient) -> None:
     response = client.post("/api/auth/signup", json={"username": "x", "password": "123"})
     assert response.status_code == 400
     assert response.json() == {"message": "Invalid request"}
+
+
+def test_store_uses_database_url_and_persists_data(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'app.db'}"
+    monkeypatch.setenv("DATABASE_URL", database_url)
+
+    first_store = Store()
+    first_store.add_user("diana", hash_password("password"), "u_diana")
+
+    second_store = Store()
+    user = second_store.find_user_by_username("diana")
+    assert user is not None
+    assert user.id == "u_diana"
