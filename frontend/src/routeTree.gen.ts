@@ -14,6 +14,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SpectateIndexRouteImport } from './routes/spectate.index'
 import { Route as SpectateIdRouteImport } from './routes/spectate.$id'
 import { Route as PlayModeRouteImport } from './routes/play.$mode'
 
@@ -42,6 +43,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SpectateIndexRoute = SpectateIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SpectateRoute,
+} as any)
 const SpectateIdRoute = SpectateIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -61,15 +67,16 @@ export interface FileRoutesByFullPath {
   '/spectate': typeof SpectateRouteWithChildren
   '/play/$mode': typeof PlayModeRoute
   '/spectate/$id': typeof SpectateIdRoute
+  '/spectate/': typeof SpectateIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
-  '/spectate': typeof SpectateRouteWithChildren
   '/play/$mode': typeof PlayModeRoute
   '/spectate/$id': typeof SpectateIdRoute
+  '/spectate': typeof SpectateIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -80,6 +87,7 @@ export interface FileRoutesById {
   '/spectate': typeof SpectateRouteWithChildren
   '/play/$mode': typeof PlayModeRoute
   '/spectate/$id': typeof SpectateIdRoute
+  '/spectate/': typeof SpectateIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -91,15 +99,16 @@ export interface FileRouteTypes {
     | '/spectate'
     | '/play/$mode'
     | '/spectate/$id'
+    | '/spectate/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/leaderboard'
     | '/login'
     | '/signup'
-    | '/spectate'
     | '/play/$mode'
     | '/spectate/$id'
+    | '/spectate'
   id:
     | '__root__'
     | '/'
@@ -109,6 +118,7 @@ export interface FileRouteTypes {
     | '/spectate'
     | '/play/$mode'
     | '/spectate/$id'
+    | '/spectate/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -157,6 +167,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/spectate/': {
+      id: '/spectate/'
+      path: '/'
+      fullPath: '/spectate/'
+      preLoaderRoute: typeof SpectateIndexRouteImport
+      parentRoute: typeof SpectateRoute
+    }
     '/spectate/$id': {
       id: '/spectate/$id'
       path: '/$id'
@@ -176,10 +193,12 @@ declare module '@tanstack/react-router' {
 
 interface SpectateRouteChildren {
   SpectateIdRoute: typeof SpectateIdRoute
+  SpectateIndexRoute: typeof SpectateIndexRoute
 }
 
 const SpectateRouteChildren: SpectateRouteChildren = {
   SpectateIdRoute: SpectateIdRoute,
+  SpectateIndexRoute: SpectateIndexRoute,
 }
 
 const SpectateRouteWithChildren = SpectateRoute._addFileChildren(
