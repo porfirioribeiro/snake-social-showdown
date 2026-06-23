@@ -254,6 +254,14 @@ class Store:
             session.commit()
             return True
 
+    def active_game_ids_for_user(self, user_id: str) -> list[str]:
+        with self.session() as session:
+            return list(
+                session.scalars(
+                    select(GameRow.id).where(GameRow.user_id == user_id, GameRow.alive.is_(True))
+                ).all()
+            )
+
     def update_game(self, game_id: str, state: GameState) -> GameState | None:
         with self.session() as session:
             row = session.get(GameRow, game_id)

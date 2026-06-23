@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Snake Social Showdown API
   version: 0.1.0
-  description: Backend contract expected by the frontend Api interface in frontend/src/services/api.ts.
+  description: Backend contract expected by the frontend Api interface in frontend/src/services/api.ts. Live spectator updates use WebSockets at /api/games/active/ws and /api/games/{id}/ws; those channels emit the event schemas documented here.
 servers:
   - url: /api
 security: []
@@ -385,7 +385,11 @@ paths:
         - Games
       operationId: subscribeActiveGames
       summary: Subscribe to active game list updates.
-      description: Server-sent events stream for live spectator list updates. Each event data payload is an ActiveGamesEvent JSON object.
+      description: Legacy server-sent events stream for active game list updates. Prefer the WebSocket channel at ws(s)://<host>/api/games/active/ws, which immediately sends and broadcasts ActiveGamesEvent JSON messages.
+      x-websocket:
+        path: /games/active/ws
+        messages:
+          - $ref: "#/components/schemas/ActiveGamesEvent"
       responses:
         "200":
           description: Stream of active game list events.
@@ -474,7 +478,12 @@ paths:
         - Games
       operationId: subscribeGame
       summary: Subscribe to updates for one game.
-      description: Server-sent events stream for live game-state updates. Game-state events carry a GameStateEvent payload; when a game is removed, the stream emits one GameDeletedEvent payload and closes.
+      description: Legacy server-sent events stream for live game-state updates. Prefer the WebSocket channel at ws(s)://<host>/api/games/{id}/ws, which immediately sends the current GameStateEvent and then broadcasts GameStateEvent or GameDeletedEvent JSON messages.
+      x-websocket:
+        path: /games/{id}/ws
+        messages:
+          - $ref: "#/components/schemas/GameStateEvent"
+          - $ref: "#/components/schemas/GameDeletedEvent"
       responses:
         "200":
           description: Stream of game state events.

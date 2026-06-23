@@ -3,6 +3,7 @@ from collections.abc import Generator
 import pytest
 from fastapi.testclient import TestClient
 
+from app.live import live_hub
 from app.main import create_app
 from app.passwords import hash_password
 from app.store import Store, get_store
@@ -10,6 +11,8 @@ from app.store import Store, get_store
 
 @pytest.fixture()
 def client() -> Generator[TestClient]:
+    live_hub.game_clients.clear()
+    live_hub.active_clients.clear()
     store = Store("sqlite:///:memory:")
     alice = store.add_user("alice", hash_password("password"), "u_alice")
     bruno = store.add_user("bruno", hash_password("password"), "u_bruno")
@@ -27,6 +30,8 @@ def client() -> Generator[TestClient]:
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+    live_hub.game_clients.clear()
+    live_hub.active_clients.clear()
 
 
 def bearer_token(response) -> str:
@@ -150,6 +155,49 @@ def test_dead_game_update_removes_it_from_live_games(client: TestClient) -> None
 
     active = client.get("/api/games/active")
     assert game["id"] not in {listed["id"] for listed in active.json()}
+
+
+def test_game_websocket_streams_live_updates_and_deletion(client: TestClient) -> None:
+    login = client.post("/api/auth/login", json={"username": "alice", "password": "password"})
+    headers = {"Authorization": f"Bearer {bearer_token(login)}"}
+    game = client.post("/api/games", json={"mode": "walls"}, headers=headers).json()
+
+    with client.websocket_connect(f"/api/games/{game['id']}/ws") as websocket:
+        initial = websocket.receive_json()
+        assert initial["type"] == "game-state"
+        assert initial["game"]["id"] == game["id"]
+
+        game["score"] = 7
+        updated = client.put(f"/api/games/{game['id']}", json=game, headers=headers)
+        assert updated.status_code == 204
+        message = websocket.receive_json()
+        assert message["type"] == "game-state"
+        assert message["game"]["score"] == 7
+
+        game["alive"] = False
+        ended = client.put(f"/api/games/{game['id']}", json=game, headers=headers)
+        assert ended.status_code == 204
+        message = websocket.receive_json()
+        assert message == {"type": "game-deleted", "gameId": game["id"]}
+
+
+def test_active_games_websocket_streams_list_changes(client: TestClient) -> None:
+    login = client.post("/api/auth/login", json={"username": "alice", "password": "password"})
+    headers = {"Authorization": f"Bearer {bearer_token(login)}"}
+
+    with client.websocket_connect("/api/games/active/ws") as websocket:
+        initial = websocket.receive_json()
+        assert initial == {"type": "active-games", "games": []}
+
+        game = client.post("/api/games", json={"mode": "wrap"}, headers=headers).json()
+        message = websocket.receive_json()
+        assert message["type"] == "active-games"
+        assert [listed["id"] for listed in message["games"]] == [game["id"]]
+
+        abandoned = client.post(f"/api/games/{game['id']}/abandon", headers=headers)
+        assert abandoned.status_code == 204
+        message = websocket.receive_json()
+        assert message == {"type": "active-games", "games": []}
 
 
 def test_validation_errors_use_error_response_shape(client: TestClient) -> None:

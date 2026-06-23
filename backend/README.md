@@ -55,6 +55,16 @@ DATABASE_URL=postgresql+psycopg://snakesocial:snakesocial@localhost:5432/snakeso
 The persistence layer uses SQLAlchemy so SQLite and Postgres can both run
 without changing the route handlers.
 
+### Live spectator streams
+
+Spectator views use WebSockets for live events:
+
+- `ws://localhost:8000/api/games/active/ws` streams `active-games` messages.
+- `ws://localhost:8000/api/games/{id}/ws` streams `game-state` and `game-deleted` messages.
+
+The REST game endpoints still create, update, and abandon games; each mutation
+broadcasts to connected spectators immediately.
+
 ### Test
 
 ```sh

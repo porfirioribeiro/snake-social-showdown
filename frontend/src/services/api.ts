@@ -116,24 +116,26 @@ export class BackendApi implements Api {
   }
 
   subscribeGame(id: string, cb: (s: GameState) => void, onDone?: () => void): () => void {
-    return this.subscribe<GameStateEvent>(
-      `/games/${encodeURIComponent(id)}/events`,
-      "game-state",
-      (event) => cb(event.game),
+    return this.subscribeLive<GameStateEvent | { type: "game-deleted"; gameId: string }>(
+      `/games/${encodeURIComponent(id)}/ws`,
+      (event) => {
+        if (event.type === "game-state") cb(event.game);
+        if (event.type === "game-deleted") onDone?.();
+      },
       async () => {
         const game = await this.getGame(id);
         if (game) cb(game);
         else onDone?.();
-      },
-      { "game-deleted": () => onDone?.() },
+      }
     );
   }
 
   subscribeActiveGames(cb: (list: ActiveGameSummary[]) => void): () => void {
-    return this.subscribe<ActiveGamesEvent>(
-      "/games/active/events",
-      "active-games",
-      (event) => cb(event.games),
+    return this.subscribeLive<ActiveGamesEvent>(
+      "/games/active/ws",
+      (event) => {
+        if (event.type === "active-games") cb(event.games);
+      },
       async () => cb(await this.listActiveGames()),
     );
   }
@@ -154,6 +156,18 @@ export class BackendApi implements Api {
   private url(path: string, query?: Record<string, string>) {
     const search = query ? `?${new URLSearchParams(query).toString()}` : "";
     return `${this.baseUrl}/api${path}${search}`;
+  }
+
+  private wsUrl(path: string) {
+    if (this.baseUrl) {
+      const base = new URL(this.baseUrl);
+      base.protocol = base.protocol === "https:" ? "wss:" : "ws:";
+      return `${base.toString().replace(/\/$/, "")}/api${path}`;
+    }
+
+    const loc = window.location;
+    const protocol = loc.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${loc.host}/api${path}`;
   }
 
   private async request<T>(
@@ -195,35 +209,26 @@ export class BackendApi implements Api {
     return response.statusText || "Request failed";
   }
 
-  private subscribe<T>(
+  private subscribeLive<T>(
     path: string,
-    eventName: string,
     onEvent: (event: T) => void,
     poll: () => Promise<void>,
-    extraHandlers: Record<string, (event: unknown) => void> = {},
   ): () => void {
-    if (typeof EventSource === "undefined") {
+    if (typeof WebSocket === "undefined") {
       void poll();
       const interval = window.setInterval(() => void poll(), 2000);
       return () => window.clearInterval(interval);
     }
 
-    const source = new EventSource(this.url(path), { withCredentials: true });
-    const handler = (message: MessageEvent<string>) => {
+    const socket = new WebSocket(this.wsUrl(path));
+    socket.onmessage = (message: MessageEvent<string>) => {
       onEvent(JSON.parse(message.data) as T);
     };
-    source.addEventListener(eventName, handler);
-    const cleanupExtraHandlers = Object.entries(extraHandlers).map(([name, extraHandler]) => {
-      const wrapped = (message: Event) => {
-        extraHandler(JSON.parse((message as MessageEvent<string>).data));
-      };
-      source.addEventListener(name, wrapped);
-      return () => source.removeEventListener(name, wrapped);
-    });
-    source.onmessage = handler;
+    socket.onclose = () => {
+      socket.onmessage = null;
+    };
     return () => {
-      cleanupExtraHandlers.forEach((cleanup) => cleanup());
-      source.close();
+      socket.close();
     };
   }
 }
