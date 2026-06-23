@@ -64,9 +64,7 @@ export function tick(state: GameState, rng: () => number = Math.random): GameSta
 
   const newHead = { x: nx, y: ny };
   const ate = newHead.x === state.food.x && newHead.y === state.food.y;
-  const newBody = ate
-    ? [newHead, ...state.snake]
-    : [newHead, ...state.snake.slice(0, -1)];
+  const newBody = ate ? [newHead, ...state.snake] : [newHead, ...state.snake.slice(0, -1)];
 
   // self-collision (skip the tail cell that will move when not eating)
   const collides = newBody.slice(1).some((c) => c.x === newHead.x && c.y === newHead.y);

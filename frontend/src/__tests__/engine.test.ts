@@ -80,9 +80,7 @@ describe("engine", () => {
     const g = createGame({ ...baseOpts, mode: "walls" });
     const head = g.snake[0];
     const withFood = { ...g, food: { x: head.x + 1, y: head.y } };
-    const rng = vi.fn()
-      .mockReturnValueOnce(0.05)
-      .mockReturnValueOnce(0.05);
+    const rng = vi.fn().mockReturnValueOnce(0.05).mockReturnValueOnce(0.05);
     const next = tick(withFood, rng);
     expect(next.score).toBe(1);
     expect(next.snake).toHaveLength(4);

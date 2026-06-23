@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Api } from "./api";
 import { mockApi } from "./mockApi";
 import type { User } from "./types";
@@ -19,13 +12,7 @@ interface ServicesContextValue {
 
 const ServicesContext = createContext<ServicesContextValue | null>(null);
 
-export function ServicesProvider({
-  children,
-  api = mockApi,
-}: {
-  children: ReactNode;
-  api?: Api;
-}) {
+export function ServicesProvider({ children, api = mockApi }: { children: ReactNode; api?: Api }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -35,8 +22,25 @@ export function ServicesProvider({
   }, [api]);
 
   useEffect(() => {
-    void refreshUser().finally(() => setLoading(false));
-  }, [refreshUser]);
+    let cancelled = false;
+
+    api
+      .getCurrentUser()
+      .then((u) => {
+        if (!cancelled) {
+          setUser(u);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
 
   return (
     <ServicesContext.Provider value={{ api, user, loading, refreshUser }}>

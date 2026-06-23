@@ -1,11 +1,5 @@
 import type { Api } from "./api";
-import type {
-  ActiveGameSummary,
-  GameMode,
-  GameState,
-  ScoreEntry,
-  User,
-} from "./types";
+import type { ActiveGameSummary, GameMode, GameState, ScoreEntry, User } from "./types";
 
 const LS_USERS = "snake.mock.users";
 const LS_SESSION = "snake.mock.session";
@@ -54,8 +48,7 @@ export class MockApi implements Api {
     if (!username.trim() || password.length < 4)
       throw new Error("Username required, password must be 4+ chars");
     const users = read<StoredUser[]>(LS_USERS, []);
-    if (users.some((u) => u.username === username))
-      throw new Error("Username already taken");
+    if (users.some((u) => u.username === username)) throw new Error("Username already taken");
     const user: StoredUser = { id: uid(), username, password };
     users.push(user);
     write(LS_USERS, users);

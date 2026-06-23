@@ -1,10 +1,4 @@
-import type {
-  ActiveGameSummary,
-  GameMode,
-  GameState,
-  ScoreEntry,
-  User,
-} from "./types";
+import type { ActiveGameSummary, GameMode, GameState, ScoreEntry, User } from "./types";
 
 export interface Api {
   // auth

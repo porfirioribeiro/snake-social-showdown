@@ -7,7 +7,8 @@ export const Route = createFileRoute("/")({
       { title: "Snake Arena — Play Snake online" },
       {
         name: "description",
-        content: "Play classic Snake or wrap-around mode. Compete on the leaderboard and spectate live matches.",
+        content:
+          "Play classic Snake or wrap-around mode. Compete on the leaderboard and spectate live matches.",
       },
     ],
   }),
