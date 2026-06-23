@@ -61,16 +61,15 @@ describe("engine", () => {
 
   it("self collision ends the game", () => {
     let g = createGame({ ...baseOpts, mode: "wrap" });
-    // build a snake that will collide with itself on next move
     g = {
       ...g,
       snake: [
         { x: 5, y: 5 },
-        { x: 5, y: 4 },
-        { x: 4, y: 4 },
         { x: 4, y: 5 },
         { x: 4, y: 6 },
         { x: 5, y: 6 },
+        { x: 6, y: 6 },
+        { x: 6, y: 5 },
       ],
       dir: { x: 0, y: 1 },
       food: { x: 19, y: 19 },
