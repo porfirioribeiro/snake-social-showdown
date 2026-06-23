@@ -160,7 +160,6 @@ components:
         - username
         - mode
         - score
-        - alive
       properties:
         id:
           type: string
@@ -171,8 +170,6 @@ components:
         score:
           type: integer
           minimum: 0
-        alive:
-          type: boolean
     ScoreEntry:
       type: object
       required:
@@ -222,6 +219,17 @@ components:
           const: game-state
         game:
           $ref: "#/components/schemas/GameState"
+    GameDeletedEvent:
+      type: object
+      required:
+        - type
+        - gameId
+      properties:
+        type:
+          type: string
+          const: game-deleted
+        gameId:
+          type: string
   responses:
     BadRequest:
       description: Invalid request body or query parameters.
@@ -389,7 +397,7 @@ paths:
                   summary: Active game list event.
                   value: |
                     event: active-games
-                    data: {"type":"active-games","games":[{"id":"abc123","username":"alice","mode":"walls","score":4,"alive":true}]}
+                    data: {"type":"active-games","games":[{"id":"abc123","username":"alice","mode":"walls","score":4}]}
   /games/{id}:
     parameters:
       - name: id
@@ -415,6 +423,7 @@ paths:
         - Games
       operationId: updateGame
       summary: Replace the latest state for a game.
+      description: Replaces live game state while the game is alive. When the submitted state has alive=false, the game is deleted from the live game store.
       security:
         - sessionCookie: []
       requestBody:
@@ -444,7 +453,7 @@ paths:
         - Games
       operationId: subscribeGame
       summary: Subscribe to updates for one game.
-      description: Server-sent events stream for live game-state updates. Each event data payload is a GameStateEvent JSON object.
+      description: Server-sent events stream for live game-state updates. Game-state events carry a GameStateEvent payload; when a game is removed, the stream emits one GameDeletedEvent payload and closes.
       responses:
         "200":
           description: Stream of game state events.
@@ -458,6 +467,11 @@ paths:
                   value: |
                     event: game-state
                     data: {"type":"game-state","game":{"id":"abc123","userId":"u1","username":"alice","mode":"walls","width":20,"height":20,"snake":[{"x":10,"y":10}],"food":{"x":4,"y":7},"dir":{"x":1,"y":0},"score":0,"alive":true,"startedAt":1710000000000,"updatedAt":1710000000000}}
+                gameDeleted:
+                  summary: Game deleted event.
+                  value: |
+                    event: game-deleted
+                    data: {"type":"game-deleted","gameId":"abc123"}
         "404":
           $ref: "#/components/responses/NotFound"
   /scores:

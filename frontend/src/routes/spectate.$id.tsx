@@ -14,16 +14,20 @@ function SpectateGame() {
   const { api } = useServices();
   const [state, setState] = useState<GameState | null>(null);
   const [missing, setMissing] = useState(false);
+  const [ended, setEnded] = useState(false);
 
   useEffect(() => {
     let unsub: (() => void) | undefined;
+    setState(null);
+    setMissing(false);
+    setEnded(false);
     void api.getGame(id).then((g) => {
       if (!g) {
         setMissing(true);
         return;
       }
       setState(g);
-      unsub = api.subscribeGame(id, setState);
+      unsub = api.subscribeGame(id, setState, () => setEnded(true));
     });
     return () => unsub?.();
   }, [api, id]);
@@ -32,6 +36,16 @@ function SpectateGame() {
     return (
       <div className="space-y-3">
         <p className="text-muted-foreground">Game not found.</p>
+        <Link to="/spectate" className="text-primary underline">
+          ← Back to live games
+        </Link>
+      </div>
+    );
+
+  if (ended)
+    return (
+      <div className="space-y-3">
+        <p className="text-muted-foreground">This game has ended.</p>
         <Link to="/spectate" className="text-primary underline">
           ← Back to live games
         </Link>

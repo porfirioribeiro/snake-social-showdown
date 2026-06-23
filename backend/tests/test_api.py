@@ -114,6 +114,22 @@ def test_authenticated_user_can_create_update_and_submit_score(client: TestClien
     assert leaderboard.json()[0]["score"] == 99
 
 
+def test_dead_game_update_removes_it_from_live_games(client: TestClient) -> None:
+    login = client.post("/api/auth/login", json={"username": "alice", "password": "password"})
+    headers = {"Authorization": f"Bearer {bearer_token(login)}"}
+
+    created = client.post("/api/games", json={"mode": "walls"}, headers=headers)
+    game = created.json()
+    game["alive"] = False
+
+    updated = client.put(f"/api/games/{game['id']}", json=game, headers=headers)
+    assert updated.status_code == 204
+    assert client.get(f"/api/games/{game['id']}").json() is None
+
+    active = client.get("/api/games/active")
+    assert game["id"] not in {listed["id"] for listed in active.json()}
+
+
 def test_validation_errors_use_error_response_shape(client: TestClient) -> None:
     response = client.post("/api/auth/signup", json={"username": "x", "password": "123"})
     assert response.status_code == 400

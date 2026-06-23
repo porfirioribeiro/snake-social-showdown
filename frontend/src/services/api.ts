@@ -12,7 +12,7 @@ export interface Api {
   updateGame(state: GameState): Promise<void>;
   getGame(id: string): Promise<GameState | null>;
   listActiveGames(): Promise<ActiveGameSummary[]>;
-  subscribeGame(id: string, cb: (s: GameState) => void): () => void;
+  subscribeGame(id: string, cb: (s: GameState) => void, onDone?: () => void): () => void;
   subscribeActiveGames(cb: (list: ActiveGameSummary[]) => void): () => void;
 
   // scores
@@ -107,7 +107,7 @@ export class BackendApi implements Api {
     return this.request<ActiveGameSummary[]>("/games/active");
   }
 
-  subscribeGame(id: string, cb: (s: GameState) => void): () => void {
+  subscribeGame(id: string, cb: (s: GameState) => void, onDone?: () => void): () => void {
     return this.subscribe<GameStateEvent>(
       `/games/${encodeURIComponent(id)}/events`,
       "game-state",
@@ -115,7 +115,9 @@ export class BackendApi implements Api {
       async () => {
         const game = await this.getGame(id);
         if (game) cb(game);
+        else onDone?.();
       },
+      { "game-deleted": () => onDone?.() },
     );
   }
 
@@ -189,6 +191,7 @@ export class BackendApi implements Api {
     eventName: string,
     onEvent: (event: T) => void,
     poll: () => Promise<void>,
+    extraHandlers: Record<string, (event: unknown) => void> = {},
   ): () => void {
     if (typeof EventSource === "undefined") {
       void poll();
@@ -201,8 +204,18 @@ export class BackendApi implements Api {
       onEvent(JSON.parse(message.data) as T);
     };
     source.addEventListener(eventName, handler);
+    const cleanupExtraHandlers = Object.entries(extraHandlers).map(([name, extraHandler]) => {
+      const wrapped = (message: Event) => {
+        extraHandler(JSON.parse((message as MessageEvent<string>).data));
+      };
+      source.addEventListener(name, wrapped);
+      return () => source.removeEventListener(name, wrapped);
+    });
     source.onmessage = handler;
-    return () => source.close();
+    return () => {
+      cleanupExtraHandlers.forEach((cleanup) => cleanup());
+      source.close();
+    };
   }
 }
 

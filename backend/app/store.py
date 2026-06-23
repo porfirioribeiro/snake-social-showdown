@@ -247,6 +247,10 @@ class Store:
             row = session.get(GameRow, game_id)
             if row is None:
                 return None
+            if not state.alive:
+                session.delete(row)
+                session.commit()
+                return None
             updated = state.model_copy(update={"updatedAt": now_ms()})
             self._apply_game(row, updated)
             session.commit()
@@ -254,14 +258,15 @@ class Store:
 
     def active_games(self) -> list[ActiveGameSummary]:
         with self.session() as session:
-            rows = session.scalars(select(GameRow).order_by(GameRow.updated_at.desc())).all()
+            rows = session.scalars(
+                select(GameRow).where(GameRow.alive.is_(True)).order_by(GameRow.updated_at.desc())
+            ).all()
             return [
                 ActiveGameSummary(
                     id=row.id,
                     username=row.username,
                     mode=GameMode(row.mode),
                     score=row.score,
-                    alive=row.alive,
                 )
                 for row in rows
             ]

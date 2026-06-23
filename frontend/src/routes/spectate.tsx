@@ -31,7 +31,7 @@ function SpectatePage() {
               <div>
                 <p className="font-medium">@{g.username}</p>
                 <p className="text-xs text-muted-foreground">
-                  {g.mode} · score {g.score} · {g.alive ? "alive" : "ended"}
+                  {g.mode} · score {g.score}
                 </p>
               </div>
               <Link

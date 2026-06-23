@@ -73,6 +73,13 @@ export class MockApi implements Api {
   }
 
   async updateGame(state: GameState): Promise<void> {
+    if (!state.alive) {
+      this.games.delete(state.id);
+      const ls = this.gameListeners.get(state.id);
+      if (ls) ls.forEach((cb) => cb(state));
+      this.notifyActive();
+      return;
+    }
     this.games.set(state.id, state);
     const ls = this.gameListeners.get(state.id);
     if (ls) ls.forEach((cb) => cb(state));
@@ -89,16 +96,20 @@ export class MockApi implements Api {
       username: g.username,
       mode: g.mode,
       score: g.score,
-      alive: g.alive,
     }));
   }
 
-  subscribeGame(id: string, cb: (s: GameState) => void): () => void {
+  subscribeGame(id: string, cb: (s: GameState) => void, onDone?: () => void): () => void {
     if (!this.gameListeners.has(id)) this.gameListeners.set(id, new Set());
-    this.gameListeners.get(id)!.add(cb);
+    const listener = (state: GameState) => {
+      cb(state);
+      if (!state.alive) onDone?.();
+    };
+    this.gameListeners.get(id)!.add(listener);
     const cur = this.games.get(id);
-    if (cur) cb(cur);
-    return () => this.gameListeners.get(id)?.delete(cb);
+    if (cur) listener(cur);
+    else onDone?.();
+    return () => this.gameListeners.get(id)?.delete(listener);
   }
 
   subscribeActiveGames(cb: (list: ActiveGameSummary[]) => void): () => void {

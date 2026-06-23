@@ -38,6 +38,18 @@ def test_sqlite_enforces_foreign_keys_like_postgres() -> None:
         store.create_session("missing-user", "token")
 
 
+def test_dead_game_update_deletes_live_game_row() -> None:
+    store = Store("sqlite:///:memory:")
+    user = store.add_user("live_player", hash_password("password"), "u_live_player")
+    game = store.create_game(make_game(user, GameMode.walls, game_id="game_live"))
+
+    assert [active.id for active in store.active_games()] == ["game_live"]
+    assert store.update_game(game.id, game.model_copy(update={"alive": False})) is None
+
+    assert store.get_game(game.id) is None
+    assert store.active_games() == []
+
+
 @pytest.mark.skipif(
     not os.environ.get("POSTGRES_TEST_DATABASE_URL"),
     reason="POSTGRES_TEST_DATABASE_URL is not set",

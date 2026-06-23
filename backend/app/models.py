@@ -70,7 +70,6 @@ class ActiveGameSummary(ApiModel):
     username: str
     mode: GameMode
     score: int = Field(ge=0)
-    alive: bool
 
 
 class ScoreEntry(ApiModel):

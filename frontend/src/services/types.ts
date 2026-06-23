@@ -37,5 +37,4 @@ export interface ActiveGameSummary {
   username: string;
   mode: GameMode;
   score: number;
-  alive: boolean;
 }

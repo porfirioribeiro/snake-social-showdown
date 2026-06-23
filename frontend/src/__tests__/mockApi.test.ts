@@ -80,6 +80,25 @@ describe("MockApi", () => {
     unsub();
   });
 
+  it("removes ended games from live games and notifies spectators", async () => {
+    await api.signup("ended", "pass1234");
+    const g = await api.createGame("walls");
+    const events: number[] = [];
+    const ended: boolean[] = [];
+    const unsubActive = api.subscribeActiveGames((l) => events.push(l.length));
+    const unsubGame = api.subscribeGame(g.id, () => undefined, () => ended.push(true));
+
+    await api.updateGame({ ...g, alive: false });
+    await Promise.resolve();
+
+    expect(await api.getGame(g.id)).toBeNull();
+    expect(await api.listActiveGames()).toEqual([]);
+    expect(events.at(-1)).toBe(0);
+    expect(ended).toEqual([true]);
+    unsubActive();
+    unsubGame();
+  });
+
   it("active game unsubscribe stops later notifications", async () => {
     await api.signup("active-unsub", "pass1234");
     const events: number[] = [];

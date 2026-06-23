@@ -72,6 +72,7 @@ def subscribe_game(game_id: str, store: Store = Depends(get_store)) -> Streaming
         while True:
             game = store.get_game(game_id)
             if game is None:
+                yield sse_event("game-deleted", {"type": "game-deleted", "gameId": game_id})
                 break
             yield sse_event("game-state", {"type": "game-state", "game": game.model_dump(mode="json")})
             await asyncio.sleep(1)
