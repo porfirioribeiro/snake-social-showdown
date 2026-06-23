@@ -20,6 +20,12 @@ uv sync --dev
 uv run python main.py
 ```
 
+For watch mode during development:
+
+```sh
+uv run uvicorn app.main:app --reload --port 8000
+```
+
 The API is served under `/api` at `http://localhost:8000`.
 
 FastAPI also serves:
