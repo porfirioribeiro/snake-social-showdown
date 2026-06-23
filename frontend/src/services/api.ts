@@ -33,6 +33,11 @@ type GameStateEvent = {
   game: GameState;
 };
 
+type GameUpdateEvent = {
+  type: "game-update";
+  game: GameState;
+};
+
 const TOKEN_STORAGE_KEY = "snake.backend.token";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -58,6 +63,8 @@ function parseBearer(header: string | null) {
 
 export class BackendApi implements Api {
   private readonly baseUrl: string;
+  private readonly gameUpdateSockets = new Map<string, WebSocket>();
+  private readonly pendingGameUpdates = new Map<string, GameUpdateEvent[]>();
 
   constructor(baseUrl = API_BASE_URL) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
@@ -94,13 +101,11 @@ export class BackendApi implements Api {
   }
 
   async updateGame(state: GameState): Promise<void> {
-    await this.request<void>(`/games/${encodeURIComponent(state.id)}`, {
-      method: "PUT",
-      body: state,
-    });
+    this.sendGameUpdate(state);
   }
 
   async abandonGame(id: string): Promise<void> {
+    this.closeGameUpdateSocket(id);
     await this.request<void>(`/games/${encodeURIComponent(id)}/abandon`, {
       method: "POST",
       keepalive: true,
@@ -121,11 +126,6 @@ export class BackendApi implements Api {
       (event) => {
         if (event.type === "game-state") cb(event.game);
         if (event.type === "game-deleted") onDone?.();
-      },
-      async () => {
-        const game = await this.getGame(id);
-        if (game) cb(game);
-        else onDone?.();
       }
     );
   }
@@ -135,8 +135,7 @@ export class BackendApi implements Api {
       "/games/active/ws",
       (event) => {
         if (event.type === "active-games") cb(event.games);
-      },
-      async () => cb(await this.listActiveGames()),
+      }
     );
   }
 
@@ -158,16 +157,17 @@ export class BackendApi implements Api {
     return `${this.baseUrl}/api${path}${search}`;
   }
 
-  private wsUrl(path: string) {
+  private wsUrl(path: string, query?: Record<string, string>) {
+    const search = query ? `?${new URLSearchParams(query).toString()}` : "";
     if (this.baseUrl) {
       const base = new URL(this.baseUrl);
       base.protocol = base.protocol === "https:" ? "wss:" : "ws:";
-      return `${base.toString().replace(/\/$/, "")}/api${path}`;
+      return `${base.toString().replace(/\/$/, "")}/api${path}${search}`;
     }
 
     const loc = window.location;
     const protocol = loc.protocol === "https:" ? "wss:" : "ws:";
-    return `${protocol}//${loc.host}/api${path}`;
+    return `${protocol}//${loc.host}/api${path}${search}`;
   }
 
   private async request<T>(
@@ -212,12 +212,9 @@ export class BackendApi implements Api {
   private subscribeLive<T>(
     path: string,
     onEvent: (event: T) => void,
-    poll: () => Promise<void>,
   ): () => void {
     if (typeof WebSocket === "undefined") {
-      void poll();
-      const interval = window.setInterval(() => void poll(), 2000);
-      return () => window.clearInterval(interval);
+      return () => undefined;
     }
 
     const socket = new WebSocket(this.wsUrl(path));
@@ -230,6 +227,60 @@ export class BackendApi implements Api {
     return () => {
       socket.close();
     };
+  }
+
+  private sendGameUpdate(state: GameState) {
+    const event: GameUpdateEvent = { type: "game-update", game: state };
+    const socket = this.gameUpdateSocket(state.id);
+
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(event));
+      if (!state.alive) this.closeGameUpdateSocket(state.id);
+      return;
+    }
+
+    const pending = this.pendingGameUpdates.get(state.id) ?? [];
+    pending.push(event);
+    this.pendingGameUpdates.set(state.id, pending);
+  }
+
+  private gameUpdateSocket(gameId: string) {
+    const existing = this.gameUpdateSockets.get(gameId);
+    if (existing && existing.readyState !== WebSocket.CLOSING && existing.readyState !== WebSocket.CLOSED) {
+      return existing;
+    }
+
+    const token = storedToken();
+    const socket = new WebSocket(
+      this.wsUrl(`/games/${encodeURIComponent(gameId)}/ws`, token ? { token } : undefined),
+    );
+    this.gameUpdateSockets.set(gameId, socket);
+
+    socket.onopen = () => {
+      const pending = this.pendingGameUpdates.get(gameId) ?? [];
+      this.pendingGameUpdates.delete(gameId);
+      for (const event of pending) {
+        socket.send(JSON.stringify(event));
+      }
+      if (pending.some((event) => !event.game.alive)) this.closeGameUpdateSocket(gameId);
+    };
+
+    socket.onclose = () => {
+      if (this.gameUpdateSockets.get(gameId) === socket) {
+        this.gameUpdateSockets.delete(gameId);
+      }
+    };
+
+    return socket;
+  }
+
+  private closeGameUpdateSocket(gameId: string) {
+    this.pendingGameUpdates.delete(gameId);
+    const socket = this.gameUpdateSockets.get(gameId);
+    this.gameUpdateSockets.delete(gameId);
+    if (socket && socket.readyState !== WebSocket.CLOSED) {
+      window.setTimeout(() => socket.close(), 0);
+    }
   }
 }
 

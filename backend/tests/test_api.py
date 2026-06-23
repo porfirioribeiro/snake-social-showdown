@@ -103,9 +103,14 @@ def test_authenticated_user_can_create_update_and_submit_score(client: TestClien
     assert game["username"] == "alice"
     assert game["mode"] == "wrap"
 
-    game["score"] = 99
-    updated = client.put(f"/api/games/{game['id']}", json=game, headers=headers)
-    assert updated.status_code == 204
+    with client.websocket_connect(f"/api/games/{game['id']}/ws") as websocket:
+        assert websocket.receive_json()["type"] == "game-state"
+        game["score"] = 99
+        websocket.send_json({"type": "game-update", "game": game})
+        updated = websocket.receive_json()
+        assert updated["type"] == "game-state"
+        assert updated["game"]["score"] == 99
+
     fetched = client.get(f"/api/games/{game['id']}")
     assert fetched.status_code == 200
     assert fetched.json()["score"] == 99
@@ -147,10 +152,13 @@ def test_dead_game_update_removes_it_from_live_games(client: TestClient) -> None
 
     created = client.post("/api/games", json={"mode": "walls"}, headers=headers)
     game = created.json()
-    game["alive"] = False
 
-    updated = client.put(f"/api/games/{game['id']}", json=game, headers=headers)
-    assert updated.status_code == 204
+    with client.websocket_connect(f"/api/games/{game['id']}/ws") as websocket:
+        assert websocket.receive_json()["type"] == "game-state"
+        game["alive"] = False
+        websocket.send_json({"type": "game-update", "game": game})
+        assert websocket.receive_json() == {"type": "game-deleted", "gameId": game["id"]}
+
     assert client.get(f"/api/games/{game['id']}").json() is None
 
     active = client.get("/api/games/active")
@@ -168,15 +176,13 @@ def test_game_websocket_streams_live_updates_and_deletion(client: TestClient) ->
         assert initial["game"]["id"] == game["id"]
 
         game["score"] = 7
-        updated = client.put(f"/api/games/{game['id']}", json=game, headers=headers)
-        assert updated.status_code == 204
+        websocket.send_json({"type": "game-update", "game": game})
         message = websocket.receive_json()
         assert message["type"] == "game-state"
         assert message["game"]["score"] == 7
 
         game["alive"] = False
-        ended = client.put(f"/api/games/{game['id']}", json=game, headers=headers)
-        assert ended.status_code == 204
+        websocket.send_json({"type": "game-update", "game": game})
         message = websocket.receive_json()
         assert message == {"type": "game-deleted", "gameId": game["id"]}
 

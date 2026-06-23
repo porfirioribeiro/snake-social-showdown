@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Snake Social Showdown API
   version: 0.1.0
-  description: Backend contract expected by the frontend Api interface in frontend/src/services/api.ts. Live spectator updates use WebSockets at /api/games/active/ws and /api/games/{id}/ws; those channels emit the event schemas documented here.
+  description: Backend contract expected by the frontend Api interface in frontend/src/services/api.ts. Live game updates use WebSockets at /api/games/active/ws and /api/games/{id}/ws; those channels emit the event schemas documented here.
 servers:
   - url: /api
 security: []
@@ -219,6 +219,17 @@ components:
           const: game-state
         game:
           $ref: "#/components/schemas/GameState"
+    GameUpdateEvent:
+      type: object
+      required:
+        - type
+        - game
+      properties:
+        type:
+          type: string
+          const: game-update
+        game:
+          $ref: "#/components/schemas/GameState"
     GameDeletedEvent:
       type: object
       required:
@@ -370,6 +381,11 @@ paths:
         - Games
       operationId: listActiveGames
       summary: List active games.
+      description: For live updates, connect to ws(s)://<host>/api/games/active/ws. The socket immediately sends and then broadcasts ActiveGamesEvent JSON messages.
+      x-websocket:
+        path: /games/active/ws
+        messages:
+          - $ref: "#/components/schemas/ActiveGamesEvent"
       responses:
         "200":
           description: Active games visible to spectators.
@@ -379,30 +395,6 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ActiveGameSummary"
-  /games/active/events:
-    get:
-      tags:
-        - Games
-      operationId: subscribeActiveGames
-      summary: Subscribe to active game list updates.
-      description: Legacy server-sent events stream for active game list updates. Prefer the WebSocket channel at ws(s)://<host>/api/games/active/ws, which immediately sends and broadcasts ActiveGamesEvent JSON messages.
-      x-websocket:
-        path: /games/active/ws
-        messages:
-          - $ref: "#/components/schemas/ActiveGamesEvent"
-      responses:
-        "200":
-          description: Stream of active game list events.
-          content:
-            text/event-stream:
-              schema:
-                type: string
-              examples:
-                activeGames:
-                  summary: Active game list event.
-                  value: |
-                    event: active-games
-                    data: {"type":"active-games","games":[{"id":"abc123","username":"alice","mode":"walls","score":4}]}
   /games/{id}:
     parameters:
       - name: id
@@ -415,7 +407,15 @@ paths:
         - Games
       operationId: getGame
       summary: Get a game by id.
-      description: Returns null when the frontend should treat the game as missing.
+      description: Returns null when the frontend should treat the game as missing. For live play and spectating, connect to ws(s)://<host>/api/games/{id}/ws. The socket immediately sends the current GameStateEvent, accepts authenticated owner GameUpdateEvent messages, and broadcasts GameStateEvent or GameDeletedEvent JSON messages.
+      x-websocket:
+        path: /games/{id}/ws
+        messages:
+          inbound:
+            - $ref: "#/components/schemas/GameUpdateEvent"
+          outbound:
+            - $ref: "#/components/schemas/GameStateEvent"
+            - $ref: "#/components/schemas/GameDeletedEvent"
       responses:
         "200":
           description: The game state, or null if it does not exist.
@@ -423,29 +423,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NullableGameState"
-    put:
-      tags:
-        - Games
-      operationId: updateGame
-      summary: Replace the latest state for a game.
-      description: Replaces live game state while the game is alive. When the submitted state has alive=false, the game is deleted from the live game store.
-      security:
-        - sessionCookie: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/GameState"
-      responses:
-        "204":
-          description: Game state updated. No response body.
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
   /games/{id}/abandon:
     parameters:
       - name: id
@@ -466,44 +443,6 @@ paths:
           description: Game removed if it belonged to the current user. No response body.
         "401":
           $ref: "#/components/responses/Unauthorized"
-  /games/{id}/events:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-    get:
-      tags:
-        - Games
-      operationId: subscribeGame
-      summary: Subscribe to updates for one game.
-      description: Legacy server-sent events stream for live game-state updates. Prefer the WebSocket channel at ws(s)://<host>/api/games/{id}/ws, which immediately sends the current GameStateEvent and then broadcasts GameStateEvent or GameDeletedEvent JSON messages.
-      x-websocket:
-        path: /games/{id}/ws
-        messages:
-          - $ref: "#/components/schemas/GameStateEvent"
-          - $ref: "#/components/schemas/GameDeletedEvent"
-      responses:
-        "200":
-          description: Stream of game state events.
-          content:
-            text/event-stream:
-              schema:
-                type: string
-              examples:
-                gameState:
-                  summary: Game state event.
-                  value: |
-                    event: game-state
-                    data: {"type":"game-state","game":{"id":"abc123","userId":"u1","username":"alice","mode":"walls","width":20,"height":20,"snake":[{"x":10,"y":10}],"food":{"x":4,"y":7},"dir":{"x":1,"y":0},"score":0,"alive":true,"startedAt":1710000000000,"updatedAt":1710000000000}}
-                gameDeleted:
-                  summary: Game deleted event.
-                  value: |
-                    event: game-deleted
-                    data: {"type":"game-deleted","gameId":"abc123"}
-        "404":
-          $ref: "#/components/responses/NotFound"
   /scores:
     post:
       tags:
