@@ -1,4 +1,8 @@
-.PHONY: install backend frontend dev backend-tests frontend-tests test test-integration build
+CONTAINER ?= docker
+IMAGE_NAME ?= snake-social-showdown
+PORT ?= 8000
+
+.PHONY: install backend frontend dev backend-tests frontend-tests test test-integration build docker-build docker-run docker
 
 install:
 	cd backend && uv sync --dev
@@ -26,3 +30,16 @@ test-integration:
 
 build:
 	cd frontend && npm run build
+
+docker-build:
+	$(CONTAINER) build -t $(IMAGE_NAME) .
+
+docker-run: build
+	$(CONTAINER) run --rm -it \
+		-p $(PORT):8000 \
+		-v $(CURDIR)/backend/app:/app/app \
+		-v $(CURDIR)/backend/main.py:/app/main.py \
+		-v $(CURDIR)/frontend/dist/client:/app/static \
+		$(IMAGE_NAME)
+
+docker: docker-build docker-run
