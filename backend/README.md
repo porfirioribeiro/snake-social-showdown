@@ -83,8 +83,8 @@ POSTGRES_TEST_DATABASE_URL=postgresql+psycopg://snakesocial:snakesocial@localhos
 ### Seed data
 
 The app starts with users `alice`, `bruno`, and `celine`. Each seeded user has
-the password `password`. The store also includes a few active games and
-leaderboard scores for both `walls` and `wrap` modes.
+the password `password`. The store also includes leaderboard scores for both
+`walls` and `wrap` modes, but live games are only created by active players.
 
 Login and signup return the user JSON from the OpenAPI contract, set a
 `session` cookie, and expose the bearer token in both the `Authorization` and

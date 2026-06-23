@@ -14,10 +14,7 @@ def client() -> Generator[TestClient]:
     alice = store.add_user("alice", hash_password("password"), "u_alice")
     bruno = store.add_user("bruno", hash_password("password"), "u_bruno")
     from app.models import GameMode, ScoreEntry
-    from app.store import make_game
 
-    store.create_game(make_game(alice, GameMode.walls, game_id="game_alice", score=7))
-    store.create_game(make_game(bruno, GameMode.wrap, game_id="game_bruno", score=11))
     for score in [
         ScoreEntry(id="s1", userId=alice.id, username=alice.username, mode=GameMode.walls, score=12, createdAt=1),
         ScoreEntry(id="s2", userId=bruno.id, username=bruno.username, mode=GameMode.walls, score=30, createdAt=2),
@@ -44,10 +41,10 @@ def test_health_endpoint(client: TestClient) -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_seeded_active_games_and_leaderboard_are_available(client: TestClient) -> None:
+def test_live_games_start_empty_and_leaderboard_is_available(client: TestClient) -> None:
     active = client.get("/api/games/active")
     assert active.status_code == 200
-    assert {game["id"] for game in active.json()} == {"game_alice", "game_bruno"}
+    assert active.json() == []
 
     leaderboard = client.get("/api/leaderboard", params={"mode": "walls", "limit": 2})
     assert leaderboard.status_code == 200

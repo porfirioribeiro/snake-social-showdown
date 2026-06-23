@@ -307,16 +307,6 @@ class Store:
         celine = self.add_user("celine", hash_password("password"), "u_celine")
 
         base = now_ms()
-        self.create_game(
-            make_game(alice, GameMode.walls, game_id="game_alice_walls", score=8, timestamp=base - 8_000)
-        )
-        self.create_game(
-            make_game(bruno, GameMode.wrap, game_id="game_bruno_wrap", score=14, timestamp=base - 4_000)
-        )
-        self.create_game(
-            make_game(celine, GameMode.walls, game_id="game_celine_walls", score=5, timestamp=base - 2_000)
-        )
-
         for user, mode, score, offset in [
             (alice, GameMode.walls, 42, 90_000),
             (bruno, GameMode.wrap, 57, 80_000),
