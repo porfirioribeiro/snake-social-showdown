@@ -1,35 +1,56 @@
 #!/usr/bin/env sh
 
-set -m
-
 backend_pid=""
 frontend_pid=""
+shutting_down=0
+
+kill_tree() {
+	pid="$1"
+	signal="$2"
+
+	children=$(pgrep -P "$pid" 2>/dev/null || true)
+	for child in $children; do
+		kill_tree "$child" "$signal"
+	done
+
+	kill "-$signal" "$pid" 2>/dev/null || true
+}
 
 cleanup() {
-	trap - INT TERM EXIT
+	if [ "$shutting_down" -eq 1 ]; then
+		return
+	fi
+
+	shutting_down=1
+	trap - INT TERM
 
 	if [ -n "$backend_pid" ]; then
-		kill -TERM -"$backend_pid" 2>/dev/null || kill "$backend_pid" 2>/dev/null || true
+		kill_tree "$backend_pid" TERM
 	fi
 
 	if [ -n "$frontend_pid" ]; then
-		kill -TERM -"$frontend_pid" 2>/dev/null || kill "$frontend_pid" 2>/dev/null || true
+		kill_tree "$frontend_pid" TERM
 	fi
 
 	sleep 1
 
 	if [ -n "$backend_pid" ]; then
-		kill -KILL -"$backend_pid" 2>/dev/null || true
+		kill_tree "$backend_pid" KILL
 	fi
 
 	if [ -n "$frontend_pid" ]; then
-		kill -KILL -"$frontend_pid" 2>/dev/null || true
+		kill_tree "$frontend_pid" KILL
 	fi
 
 	wait 2>/dev/null || true
 }
 
-trap cleanup INT TERM EXIT
+shutdown() {
+	cleanup
+	exit 0
+}
+
+trap shutdown INT TERM
 
 (cd backend && uv run uvicorn app.main:app --reload --port 8000) &
 backend_pid=$!
@@ -38,3 +59,7 @@ backend_pid=$!
 frontend_pid=$!
 
 wait "$backend_pid" "$frontend_pid"
+status=$?
+
+cleanup
+exit "$status"

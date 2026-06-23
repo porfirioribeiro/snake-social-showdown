@@ -11,7 +11,7 @@ frontend:
 	cd frontend && npm run dev
 
 dev:
-	./scripts/dev.sh
+	@./scripts/dev.sh
 
 backend-tests:
 	cd backend && uv run pytest
