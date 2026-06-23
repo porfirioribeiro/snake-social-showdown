@@ -71,6 +71,15 @@ uv run pytest
 uv run python -m compileall app tests
 ```
 
+To include the real Postgres store compatibility test, start Postgres from the
+repository root and pass a test database URL. The test resets the target
+database schema, so do not point it at data you want to keep:
+
+```sh
+make postgres
+POSTGRES_TEST_DATABASE_URL=postgresql+psycopg://snakesocial:snakesocial@localhost:5432/snakesocial uv run pytest tests/test_store_models.py
+```
+
 ### Seed data
 
 The app starts with users `alice`, `bruno`, and `celine`. Each seeded user has

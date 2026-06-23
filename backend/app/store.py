@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from uuid import uuid4
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, String, create_engine, select
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, String, create_engine, event, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
@@ -86,7 +86,16 @@ def make_engine(database_url: str) -> Engine:
         kwargs["connect_args"] = {"check_same_thread": False}
         if database_url in {"sqlite://", "sqlite:///:memory:"}:
             kwargs["poolclass"] = StaticPool
-    return create_engine(database_url, **kwargs)
+    engine = create_engine(database_url, **kwargs)
+    if engine.dialect.name == "sqlite":
+        event.listen(engine, "connect", enable_sqlite_foreign_keys)
+    return engine
+
+
+def enable_sqlite_foreign_keys(dbapi_connection, connection_record) -> None:
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 
 def user_from_row(row: UserRow) -> User:
