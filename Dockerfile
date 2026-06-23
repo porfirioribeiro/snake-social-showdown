@@ -11,8 +11,6 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-RUN node -e 'const fs=require("fs");const path="dist/client/assets";const files=fs.readdirSync(path);const js=files.find((f)=>/^index-.*\.js$/.test(f));const css=files.find((f)=>/^styles-.*\.css$/.test(f));if(!js||!css){throw new Error("Could not find frontend entry assets");}fs.writeFileSync("dist/client/index.html", `<!doctype html>\n<html lang="en">\n<head>\n  <meta charset="utf-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1" />\n  <title>Snake Arena</title>\n  <meta name="description" content="Multiplayer Snake game with leaderboards and spectator mode." />\n  <link rel="stylesheet" href="/assets/${css}" />\n</head>\n<body>\n  <script type="module" src="/assets/${js}"></script>\n</body>\n</html>\n`);'
-
 FROM python:3.12-slim AS backend
 
 ENV FRONTEND_STATIC_DIR=/app/static \

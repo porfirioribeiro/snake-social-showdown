@@ -54,7 +54,7 @@ def create_app() -> FastAPI:
     app.include_router(scores.router, prefix="/api")
 
     static_dir = Path(os.getenv("FRONTEND_STATIC_DIR", Path(__file__).resolve().parents[1] / "static"))
-    index_file = static_dir / "index.html"
+    index_file = static_dir / "_shell.html"
     assets_dir = static_dir / "assets"
     if index_file.exists() and assets_dir.exists():
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
