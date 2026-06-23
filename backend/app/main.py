@@ -1,7 +1,11 @@
+import os
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.routers import auth, games, scores
 
@@ -48,6 +52,24 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api")
     app.include_router(games.router, prefix="/api")
     app.include_router(scores.router, prefix="/api")
+
+    static_dir = Path(os.getenv("FRONTEND_STATIC_DIR", Path(__file__).resolve().parents[1] / "static"))
+    index_file = static_dir / "index.html"
+    assets_dir = static_dir / "assets"
+    if index_file.exists() and assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def serve_frontend(full_path: str) -> FileResponse:
+            requested_file = (static_dir / full_path).resolve()
+            if (
+                requested_file.is_file()
+                and static_dir.resolve() in requested_file.parents
+                and requested_file != index_file
+            ):
+                return FileResponse(requested_file)
+            return FileResponse(index_file)
+
     return app
 
 
