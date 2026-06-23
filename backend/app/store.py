@@ -20,7 +20,7 @@ from app.models import (
     User,
 )
 
-DEFAULT_DATABASE_URL = "sqlite:///./snake_social_showdown.db"
+DEFAULT_DATABASE_URL = "sqlite:///./snake.db"
 
 
 def now_ms() -> int:
