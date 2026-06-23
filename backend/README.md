@@ -36,7 +36,7 @@ FastAPI also serves:
 ### Database
 
 The server reads `DATABASE_URL` to choose its database connection. When it is
-not set, the backend uses SQLite at `sqlite:///./snake_social_showdown.db`.
+not set, the backend uses SQLite at `sqlite:///./snake.db`.
 
 For local development, you can point the API at a different SQLite file:
 
@@ -44,7 +44,15 @@ For local development, you can point the API at a different SQLite file:
 DATABASE_URL=sqlite:///./dev.db uv run python main.py
 ```
 
-The persistence layer uses SQLAlchemy so other database URLs can be introduced
+For Postgres, start the database from the repository root and pass a Postgres
+SQLAlchemy URL:
+
+```sh
+make postgres
+DATABASE_URL=postgresql+psycopg://snakesocial:snakesocial@localhost:5432/snakesocial uv run python main.py
+```
+
+The persistence layer uses SQLAlchemy so SQLite and Postgres can both run
 without changing the route handlers.
 
 ### Test

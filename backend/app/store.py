@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from uuid import uuid4
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, create_engine, select
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Integer, String, create_engine, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
@@ -65,8 +65,8 @@ class GameRow(Base):
     direction: Mapped[dict[str, int]] = mapped_column("dir", JSON, nullable=False)
     score: Mapped[int] = mapped_column(Integer, nullable=False)
     alive: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    started_at: Mapped[int] = mapped_column(Integer, nullable=False)
-    updated_at: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    started_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    updated_at: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
 
 
 class ScoreRow(Base):
@@ -77,7 +77,7 @@ class ScoreRow(Base):
     username: Mapped[str] = mapped_column(String(120), nullable=False)
     mode: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     score: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    created_at: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    created_at: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
 
 
 def make_engine(database_url: str) -> Engine:
