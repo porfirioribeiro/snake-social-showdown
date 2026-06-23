@@ -15,7 +15,7 @@ const TICK_MS = 120;
 function PlayPage() {
   const { mode } = Route.useParams();
   const navigate = useNavigate();
-  const { api, user } = useServices();
+  const { api, user, loading } = useServices();
   const [state, setState] = useState<GameState | null>(null);
   const stateRef = useRef<GameState | null>(null);
   const submittedRef = useRef(false);
@@ -25,6 +25,7 @@ function PlayPage() {
       navigate({ to: "/" });
       return;
     }
+    if (loading) return;
     if (!user) {
       navigate({ to: "/login" });
       return;
@@ -38,7 +39,7 @@ function PlayPage() {
     return () => {
       cancelled = true;
     };
-  }, [mode, api, navigate, user]);
+  }, [mode, api, navigate, user, loading]);
 
   // keyboard
   useEffect(() => {
