@@ -96,25 +96,27 @@ function RootComponent() {
 
 function Shell() {
   const { user, api, refreshUser } = useServices();
+  const navLinkClass =
+    "rounded-full px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&.active]:bg-primary [&.active]:text-primary-foreground [&.active]:shadow-sm";
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border">
+      <header className="sticky top-0 z-10 border-b border-border/80 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <Link to="/" className="text-lg font-bold tracking-tight">
+          <Link to="/" className="text-lg font-bold tracking-tight text-foreground">
             🐍 Snake Arena
           </Link>
-          <nav className="flex items-center gap-4 text-sm">
-            <Link to="/leaderboard" className="hover:text-primary">
+          <nav className="flex items-center gap-2" aria-label="Main navigation">
+            <Link to="/leaderboard" className={navLinkClass}>
               Leaderboard
             </Link>
-            <Link to="/spectate" className="hover:text-primary">
+            <Link to="/spectate" className={navLinkClass}>
               Spectate
             </Link>
             {user ? (
               <>
-                <span className="text-muted-foreground">@{user.username}</span>
+                <span className="ml-2 text-sm text-muted-foreground">@{user.username}</span>
                 <button
-                  className="rounded border border-border px-2 py-1 hover:bg-accent"
+                  className="rounded-full border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                   onClick={async () => {
                     await api.logout();
                     await refreshUser();
@@ -125,13 +127,10 @@ function Shell() {
               </>
             ) : (
               <>
-                <Link to="/login" className="hover:text-primary">
+                <Link to="/login" className={navLinkClass}>
                   Login
                 </Link>
-                <Link
-                  to="/signup"
-                  className="rounded bg-primary px-3 py-1 text-primary-foreground hover:bg-primary/90"
-                >
+                <Link to="/signup" className={navLinkClass}>
                   Sign up
                 </Link>
               </>

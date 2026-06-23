@@ -27,7 +27,7 @@ function PlayPage() {
     }
     if (loading) return;
     if (!user) {
-      navigate({ to: "/login" });
+      navigate({ to: "/login", search: { mode } });
       return;
     }
     let cancelled = false;

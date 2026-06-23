@@ -3,11 +3,15 @@ import { useState } from "react";
 import { useServices } from "@/services/context";
 
 export const Route = createFileRoute("/signup")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    mode: search.mode === "walls" || search.mode === "wrap" ? search.mode : undefined,
+  }),
   head: () => ({ meta: [{ title: "Sign up — Snake Arena" }] }),
   component: SignupPage,
 });
 
 function SignupPage() {
+  const { mode } = Route.useSearch();
   const { api, refreshUser } = useServices();
   const navigate = useNavigate();
   const [username, setU] = useState("");
@@ -22,7 +26,11 @@ function SignupPage() {
     try {
       await api.signup(username, password);
       await refreshUser();
-      navigate({ to: "/" });
+      if (mode) {
+        navigate({ to: "/play/$mode", params: { mode } });
+      } else {
+        navigate({ to: "/" });
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Signup failed");
     } finally {
@@ -64,7 +72,7 @@ function SignupPage() {
       </form>
       <p className="text-sm text-muted-foreground">
         Have an account?{" "}
-        <Link to="/login" className="text-primary underline">
+        <Link to="/login" search={mode ? { mode } : undefined} className="text-primary underline">
           Log in
         </Link>
       </p>
