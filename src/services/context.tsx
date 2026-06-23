@@ -1,0 +1,52 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
+import type { Api } from "./api";
+import { mockApi } from "./mockApi";
+import type { User } from "./types";
+
+interface ServicesContextValue {
+  api: Api;
+  user: User | null;
+  loading: boolean;
+  refreshUser: () => Promise<void>;
+}
+
+const ServicesContext = createContext<ServicesContextValue | null>(null);
+
+export function ServicesProvider({
+  children,
+  api = mockApi,
+}: {
+  children: ReactNode;
+  api?: Api;
+}) {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const refreshUser = useCallback(async () => {
+    const u = await api.getCurrentUser();
+    setUser(u);
+  }, [api]);
+
+  useEffect(() => {
+    void refreshUser().finally(() => setLoading(false));
+  }, [refreshUser]);
+
+  return (
+    <ServicesContext.Provider value={{ api, user, loading, refreshUser }}>
+      {children}
+    </ServicesContext.Provider>
+  );
+}
+
+export function useServices() {
+  const ctx = useContext(ServicesContext);
+  if (!ctx) throw new Error("useServices must be used within ServicesProvider");
+  return ctx;
+}
