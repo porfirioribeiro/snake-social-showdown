@@ -10,7 +10,6 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
 import { ServicesProvider, useServices } from "../services/context";
 
 function NotFoundComponent() {
@@ -30,7 +29,7 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
+    console.error(error);
   }, [error]);
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -57,7 +56,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Snake Arena" },
-      { name: "description", content: "Multiplayer Snake game with leaderboards and spectator mode." },
+      {
+        name: "description",
+        content: "Multiplayer Snake game with leaderboards and spectator mode.",
+      },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
   }),
