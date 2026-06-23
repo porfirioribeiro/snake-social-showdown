@@ -33,6 +33,7 @@ type GameStateEvent = {
 };
 
 const TOKEN_STORAGE_KEY = "snake.backend.token";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 function storedToken() {
   if (typeof localStorage === "undefined") return null;
@@ -57,7 +58,7 @@ function parseBearer(header: string | null) {
 export class BackendApi implements Api {
   private readonly baseUrl: string;
 
-  constructor(baseUrl = import.meta.env.VITE_API_BASE_URL ?? "/api") {
+  constructor(baseUrl = API_BASE_URL) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
   }
 
@@ -142,7 +143,7 @@ export class BackendApi implements Api {
 
   private url(path: string, query?: Record<string, string>) {
     const search = query ? `?${new URLSearchParams(query).toString()}` : "";
-    return `${this.baseUrl}${path}${search}`;
+    return `${this.baseUrl}/api${path}${search}`;
   }
 
   private async request<T>(
