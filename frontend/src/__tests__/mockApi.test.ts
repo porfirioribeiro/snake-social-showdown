@@ -14,6 +14,11 @@ describe("MockApi", () => {
     expect(cur?.username).toBe("alice");
   });
 
+  it("rejects blank usernames and short passwords", async () => {
+    await expect(api.signup(" ", "pass1234")).rejects.toThrow(/username required/i);
+    await expect(api.signup("short", "123")).rejects.toThrow(/password must be 4\+/i);
+  });
+
   it("rejects duplicate usernames", async () => {
     await api.signup("bob", "pass1234");
     await expect(api.signup("bob", "other123")).rejects.toThrow(/taken/i);
@@ -23,6 +28,17 @@ describe("MockApi", () => {
     await api.signup("carol", "pass1234");
     await api.logout();
     await expect(api.login("carol", "wrong")).rejects.toThrow(/invalid/i);
+  });
+
+  it("login fails for unknown users", async () => {
+    await expect(api.login("missing", "pass1234")).rejects.toThrow(/invalid/i);
+  });
+
+  it("falls back when persisted JSON is malformed", async () => {
+    localStorage.setItem("snake.mock.session", "{bad json");
+    localStorage.setItem("snake.mock.scores", "{bad json");
+    expect(await api.getCurrentUser()).toBeNull();
+    expect(await api.getLeaderboard("walls")).toEqual([]);
   });
 
   it("submitScore and getLeaderboard sort desc and filter by mode", async () => {
@@ -35,6 +51,19 @@ describe("MockApi", () => {
     const wr = await api.getLeaderboard("wrap");
     expect(wr).toHaveLength(1);
     expect(wr[0].score).toBe(99);
+  });
+
+  it("getLeaderboard honors the provided limit", async () => {
+    await api.signup("limit", "pass1234");
+    await api.submitScore(3, "walls");
+    await api.submitScore(8, "walls");
+    await api.submitScore(5, "walls");
+    const scores = await api.getLeaderboard("walls", 2);
+    expect(scores.map((s) => s.score)).toEqual([8, 5]);
+  });
+
+  it("submitScore requires auth", async () => {
+    await expect(api.submitScore(1, "walls")).rejects.toThrow(/auth/i);
   });
 
   it("creates games and lists them as active; subscribeActiveGames notifies", async () => {
@@ -51,6 +80,17 @@ describe("MockApi", () => {
     unsub();
   });
 
+  it("active game unsubscribe stops later notifications", async () => {
+    await api.signup("active-unsub", "pass1234");
+    const events: number[] = [];
+    const unsub = api.subscribeActiveGames((l) => events.push(l.length));
+    await Promise.resolve();
+    unsub();
+    await api.createGame("walls");
+    await Promise.resolve();
+    expect(events).toEqual([0]);
+  });
+
   it("subscribeGame receives updates", async () => {
     await api.signup("f", "pass1234");
     const g = await api.createGame("wrap");
@@ -59,6 +99,30 @@ describe("MockApi", () => {
     await api.updateGame({ ...g, score: 5 });
     expect(received.at(-1)).toBe(5);
     unsub();
+  });
+
+  it("subscribeGame does not emit immediately for unknown games and unsubscribes", async () => {
+    await api.signup("game-unsub", "pass1234");
+    const received: number[] = [];
+    const unsub = api.subscribeGame("missing", (s) => received.push(s.score));
+    expect(received).toEqual([]);
+    unsub();
+    await api.updateGame({
+      id: "missing",
+      userId: "u1",
+      username: "game-unsub",
+      mode: "walls",
+      width: 20,
+      height: 20,
+      snake: [{ x: 1, y: 1 }],
+      dir: { x: 1, y: 0 },
+      food: { x: 2, y: 2 },
+      score: 4,
+      alive: true,
+      startedAt: 1,
+      updatedAt: 1,
+    });
+    expect(received).toEqual([]);
   });
 
   it("createGame requires auth", async () => {

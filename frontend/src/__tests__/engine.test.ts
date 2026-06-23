@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createGame, setDirection, tick, BOARD_W, BOARD_H } from "@/game/engine";
 
 const baseOpts = { id: "g1", userId: "u1", username: "p1", rng: () => 0.999 };
@@ -28,6 +28,32 @@ describe("engine", () => {
     expect(reversed.dir).toEqual({ x: 1, y: 0 });
   });
 
+  it("ignores a zero direction", () => {
+    const g = createGame({ ...baseOpts, mode: "walls" });
+    const unchanged = setDirection(g, { x: 0, y: 0 });
+    expect(unchanged).toBe(g);
+  });
+
+  it("accepts a perpendicular direction", () => {
+    const g = createGame({ ...baseOpts, mode: "walls" });
+    const turned = setDirection(g, { x: 0, y: 1 });
+    expect(turned).not.toBe(g);
+    expect(turned.dir).toEqual({ x: 0, y: 1 });
+  });
+
+  it("allows reversal for a one-cell snake", () => {
+    const g = createGame({ ...baseOpts, mode: "walls" });
+    const shortSnake = { ...g, snake: [g.snake[0]] };
+    const reversed = setDirection(shortSnake, { x: -1, y: 0 });
+    expect(reversed.dir).toEqual({ x: -1, y: 0 });
+  });
+
+  it("does not tick an already dead game", () => {
+    const g = createGame({ ...baseOpts, mode: "walls" });
+    const dead = { ...g, alive: false };
+    expect(tick(dead)).toBe(dead);
+  });
+
   it("walls mode kills on wall hit", () => {
     let g = createGame({ ...baseOpts, mode: "walls" });
     g = { ...g, snake: [{ x: BOARD_W - 1, y: 0 }], dir: { x: 1, y: 0 }, food: { x: 0, y: 5 } };
@@ -54,9 +80,14 @@ describe("engine", () => {
     const g = createGame({ ...baseOpts, mode: "walls" });
     const head = g.snake[0];
     const withFood = { ...g, food: { x: head.x + 1, y: head.y } };
-    const next = tick(withFood);
+    const rng = vi.fn()
+      .mockReturnValueOnce(0.05)
+      .mockReturnValueOnce(0.05);
+    const next = tick(withFood, rng);
     expect(next.score).toBe(1);
     expect(next.snake).toHaveLength(4);
+    expect(next.food).toEqual({ x: 1, y: 1 });
+    expect(rng).toHaveBeenCalled();
   });
 
   it("self collision ends the game", () => {
