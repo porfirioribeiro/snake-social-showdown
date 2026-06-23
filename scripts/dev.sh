@@ -25,7 +25,7 @@ cleanup() {
 	trap - INT TERM
 
 	if [ -n "$backend_pid" ]; then
-		kill_tree "$backend_pid" TERM
+		kill -TERM "$backend_pid" 2>/dev/null || true
 	fi
 
 	if [ -n "$frontend_pid" ]; then
@@ -35,7 +35,7 @@ cleanup() {
 	sleep 1
 
 	if [ -n "$backend_pid" ]; then
-		kill_tree "$backend_pid" KILL
+		kill -KILL "$backend_pid" 2>/dev/null || true
 	fi
 
 	if [ -n "$frontend_pid" ]; then
@@ -52,10 +52,10 @@ shutdown() {
 
 trap shutdown INT TERM
 
-(cd backend && uv run uvicorn app.main:app --reload --port 8000) &
+(make backend) &
 backend_pid=$!
 
-(cd frontend && npm run dev) &
+(make frontend) &
 frontend_pid=$!
 
 wait "$backend_pid" "$frontend_pid"

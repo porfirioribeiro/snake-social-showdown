@@ -1,11 +1,11 @@
-.PHONY: install backend frontend dev backend-tests frontend-tests test test-integration build up down
+.PHONY: install backend frontend dev backend-tests frontend-tests test build up down
 
 install:
-	cd backend && uv sync --dev
 	cd frontend && npm install
+	cargo install cargo-watch
 
 backend:
-	cd backend && uv run uvicorn app.main:app --reload --port 8000
+	cd backend && DATABASE_URL=sqlite://snake.db cargo watch -x run
 
 frontend:
 	cd frontend && npm run dev
@@ -14,15 +14,12 @@ dev:
 	@./scripts/dev.sh
 
 backend-tests:
-	cd backend && uv run pytest
+	cd backend && cargo test
 
 frontend-tests:
 	cd frontend && npm test
 
 test: backend-tests frontend-tests
-
-test-integration:
-	cd backend && uv run pytest tests_integration/
 
 build:
 	cd frontend && npm run build

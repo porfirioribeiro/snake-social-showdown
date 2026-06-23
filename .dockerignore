@@ -1,15 +1,10 @@
 .git
-.venv
-__pycache__
-*.pyc
-
-backend/.venv
-backend/__pycache__
-backend/.pytest_cache
+.DS_Store
 
 frontend/node_modules
 frontend/dist
 frontend/.tanstack
 frontend/.vite
 
-.DS_Store
+backend/target
+
