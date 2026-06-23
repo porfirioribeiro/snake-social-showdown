@@ -99,6 +99,31 @@ describe("MockApi", () => {
     unsubGame();
   });
 
+  it("replaces a user's existing live game when creating another", async () => {
+    await api.signup("replace", "pass1234");
+    const first = await api.createGame("walls");
+    const second = await api.createGame("wrap");
+
+    expect(first.id).not.toBe(second.id);
+    expect(await api.getGame(first.id)).toBeNull();
+    expect(await api.getGame(second.id)).toEqual(second);
+    expect((await api.listActiveGames()).map((game) => game.id)).toEqual([second.id]);
+  });
+
+  it("abandons live games and notifies spectators", async () => {
+    await api.signup("abandon", "pass1234");
+    const g = await api.createGame("walls");
+    const ended: boolean[] = [];
+    const unsub = api.subscribeGame(g.id, () => undefined, () => ended.push(true));
+
+    await api.abandonGame(g.id);
+
+    expect(await api.getGame(g.id)).toBeNull();
+    expect(await api.listActiveGames()).toEqual([]);
+    expect(ended).toEqual([true]);
+    unsub();
+  });
+
   it("active game unsubscribe stops later notifications", async () => {
     await api.signup("active-unsub", "pass1234");
     const events: number[] = [];

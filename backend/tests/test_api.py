@@ -111,6 +111,31 @@ def test_authenticated_user_can_create_update_and_submit_score(client: TestClien
     assert leaderboard.json()[0]["score"] == 99
 
 
+def test_creating_game_replaces_users_existing_live_game(client: TestClient) -> None:
+    login = client.post("/api/auth/login", json={"username": "alice", "password": "password"})
+    headers = {"Authorization": f"Bearer {bearer_token(login)}"}
+
+    first = client.post("/api/games", json={"mode": "walls"}, headers=headers).json()
+    second = client.post("/api/games", json={"mode": "wrap"}, headers=headers).json()
+
+    assert first["id"] != second["id"]
+    assert client.get(f"/api/games/{first['id']}").json() is None
+    assert client.get(f"/api/games/{second['id']}").json()["mode"] == "wrap"
+    assert [game["id"] for game in client.get("/api/games/active").json()] == [second["id"]]
+
+
+def test_abandon_game_removes_users_live_game(client: TestClient) -> None:
+    login = client.post("/api/auth/login", json={"username": "alice", "password": "password"})
+    headers = {"Authorization": f"Bearer {bearer_token(login)}"}
+
+    game = client.post("/api/games", json={"mode": "walls"}, headers=headers).json()
+    abandoned = client.post(f"/api/games/{game['id']}/abandon", headers=headers)
+
+    assert abandoned.status_code == 204
+    assert client.get(f"/api/games/{game['id']}").json() is None
+    assert client.get("/api/games/active").json() == []
+
+
 def test_dead_game_update_removes_it_from_live_games(client: TestClient) -> None:
     login = client.post("/api/auth/login", json={"username": "alice", "password": "password"})
     headers = {"Authorization": f"Bearer {bearer_token(login)}"}

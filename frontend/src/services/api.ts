@@ -10,6 +10,7 @@ export interface Api {
   // games
   createGame(mode: GameMode): Promise<GameState>;
   updateGame(state: GameState): Promise<void>;
+  abandonGame(id: string): Promise<void>;
   getGame(id: string): Promise<GameState | null>;
   listActiveGames(): Promise<ActiveGameSummary[]>;
   subscribeGame(id: string, cb: (s: GameState) => void, onDone?: () => void): () => void;
@@ -99,6 +100,13 @@ export class BackendApi implements Api {
     });
   }
 
+  async abandonGame(id: string): Promise<void> {
+    await this.request<void>(`/games/${encodeURIComponent(id)}/abandon`, {
+      method: "POST",
+      keepalive: true,
+    });
+  }
+
   async getGame(id: string): Promise<GameState | null> {
     return this.request<GameState | null>(`/games/${encodeURIComponent(id)}`);
   }
@@ -150,7 +158,7 @@ export class BackendApi implements Api {
 
   private async request<T>(
     path: string,
-    options: { method?: string; body?: JsonBody; query?: Record<string, string> } = {},
+    options: { method?: string; body?: JsonBody; query?: Record<string, string>; keepalive?: boolean } = {},
   ): Promise<T> {
     const headers = new Headers();
     const token = storedToken();
@@ -162,6 +170,7 @@ export class BackendApi implements Api {
       credentials: "include",
       headers,
       body: options.body ? JSON.stringify(options.body) : undefined,
+      keepalive: options.keepalive,
     });
 
     const tokenFromHeader =

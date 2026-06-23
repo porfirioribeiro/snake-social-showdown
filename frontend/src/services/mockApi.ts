@@ -67,6 +67,9 @@ export class MockApi implements Api {
     if (!user) throw new Error("Not authenticated");
     const { createGame } = await import("@/game/engine");
     const g = createGame({ id: uid(), userId: user.id, username: user.username, mode });
+    Array.from(this.games.values())
+      .filter((game) => game.userId === user.id)
+      .forEach((game) => this.removeGame(game.id));
     this.games.set(g.id, g);
     this.notifyActive();
     return g;
@@ -74,15 +77,18 @@ export class MockApi implements Api {
 
   async updateGame(state: GameState): Promise<void> {
     if (!state.alive) {
-      this.games.delete(state.id);
-      const ls = this.gameListeners.get(state.id);
-      if (ls) ls.forEach((cb) => cb(state));
+      this.removeGame(state.id, state);
       this.notifyActive();
       return;
     }
     this.games.set(state.id, state);
     const ls = this.gameListeners.get(state.id);
     if (ls) ls.forEach((cb) => cb(state));
+    this.notifyActive();
+  }
+
+  async abandonGame(id: string): Promise<void> {
+    this.removeGame(id);
     this.notifyActive();
   }
 
@@ -122,6 +128,14 @@ export class MockApi implements Api {
     void this.listActiveGames().then((list) => {
       this.activeListeners.forEach((cb) => cb(list));
     });
+  }
+
+  private removeGame(id: string, finalState?: GameState) {
+    const game = this.games.get(id);
+    if (!game) return;
+    this.games.delete(id);
+    const ls = this.gameListeners.get(id);
+    if (ls) ls.forEach((cb) => cb(finalState ?? { ...game, alive: false }));
   }
 
   // ---------- scores ----------

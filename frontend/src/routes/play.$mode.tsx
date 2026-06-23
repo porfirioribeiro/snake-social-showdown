@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useServices } from "@/services/context";
 import { SnakeBoard } from "@/components/SnakeBoard";
 import { setDirection, tick } from "@/game/engine";
@@ -20,6 +20,13 @@ function PlayPage() {
   const stateRef = useRef<GameState | null>(null);
   const submittedRef = useRef(false);
 
+  const abandonCurrentGame = useCallback(() => {
+    const cur = stateRef.current;
+    if (!cur?.alive) return;
+    stateRef.current = null;
+    void api.abandonGame(cur.id);
+  }, [api]);
+
   useEffect(() => {
     if (mode !== "walls" && mode !== "wrap") {
       navigate({ to: "/" });
@@ -31,15 +38,30 @@ function PlayPage() {
       return;
     }
     let cancelled = false;
+    stateRef.current = null;
+    setState(null);
     void api.createGame(mode).then((g) => {
-      if (cancelled) return;
+      if (cancelled) {
+        void api.abandonGame(g.id);
+        return;
+      }
       stateRef.current = g;
       setState(g);
     });
     return () => {
       cancelled = true;
+      abandonCurrentGame();
     };
-  }, [mode, api, navigate, user, loading]);
+  }, [mode, api, navigate, user, loading, abandonCurrentGame]);
+
+  useEffect(() => {
+    function onPageHide() {
+      abandonCurrentGame();
+    }
+
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, [abandonCurrentGame]);
 
   // keyboard
   useEffect(() => {

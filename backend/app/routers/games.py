@@ -63,6 +63,15 @@ def update_game(
     store.update_game(game_id, state)
 
 
+@router.post("/{game_id}/abandon", status_code=status.HTTP_204_NO_CONTENT)
+def abandon_game(
+    game_id: str,
+    current_user: User = Depends(require_current_user),
+    store: Store = Depends(get_store),
+) -> None:
+    store.delete_game(game_id, current_user.id)
+
+
 @router.get("/{game_id}/events")
 def subscribe_game(game_id: str, store: Store = Depends(get_store)) -> StreamingResponse:
     if store.get_game(game_id) is None:

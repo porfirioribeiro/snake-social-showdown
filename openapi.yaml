@@ -344,6 +344,7 @@ paths:
         - Games
       operationId: createGame
       summary: Create a game for the signed-in user.
+      description: Creates a new live game and removes any previous live game owned by the same user.
       security:
         - sessionCookie: []
       requestBody:
@@ -441,6 +442,26 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+  /games/{id}/abandon:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags:
+        - Games
+      operationId: abandonGame
+      summary: Abandon a live game.
+      description: Removes the signed-in user's live game without submitting a score. Intended for route navigation, tab close, and page lifecycle cleanup.
+      security:
+        - sessionCookie: []
+      responses:
+        "204":
+          description: Game removed if it belonged to the current user. No response body.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
   /games/{id}/events:
     parameters:
       - name: id

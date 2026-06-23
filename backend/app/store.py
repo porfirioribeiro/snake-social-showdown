@@ -233,6 +233,9 @@ class Store:
 
     def create_game(self, game: GameState) -> GameState:
         with self.session() as session:
+            existing = session.scalars(select(GameRow).where(GameRow.user_id == game.userId)).all()
+            for row in existing:
+                session.delete(row)
             session.add(self._game_row(game))
             session.commit()
         return game
@@ -241,6 +244,15 @@ class Store:
         with self.session() as session:
             row = session.get(GameRow, game_id)
             return game_from_row(row) if row is not None else None
+
+    def delete_game(self, game_id: str, user_id: str | None = None) -> bool:
+        with self.session() as session:
+            row = session.get(GameRow, game_id)
+            if row is None or (user_id is not None and row.user_id != user_id):
+                return False
+            session.delete(row)
+            session.commit()
+            return True
 
     def update_game(self, game_id: str, state: GameState) -> GameState | None:
         with self.session() as session:
