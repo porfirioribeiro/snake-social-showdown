@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SpectateRouteImport } from './routes/spectate'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PlayModeRouteImport } from './routes/play.$mode'
 
+const SpectateRoute = SpectateRouteImport.update({
+  id: '/spectate',
+  path: '/spectate',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/spectate': typeof SpectateRoute
   '/play/$mode': typeof PlayModeRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/spectate': typeof SpectateRoute
   '/play/$mode': typeof PlayModeRoute
 }
 export interface FileRoutesById {
@@ -61,14 +69,28 @@ export interface FileRoutesById {
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
+  '/spectate': typeof SpectateRoute
   '/play/$mode': typeof PlayModeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/leaderboard' | '/login' | '/signup' | '/play/$mode'
+  fullPaths:
+    | '/'
+    | '/leaderboard'
+    | '/login'
+    | '/signup'
+    | '/spectate'
+    | '/play/$mode'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/leaderboard' | '/login' | '/signup' | '/play/$mode'
-  id: '__root__' | '/' | '/leaderboard' | '/login' | '/signup' | '/play/$mode'
+  to: '/' | '/leaderboard' | '/login' | '/signup' | '/spectate' | '/play/$mode'
+  id:
+    | '__root__'
+    | '/'
+    | '/leaderboard'
+    | '/login'
+    | '/signup'
+    | '/spectate'
+    | '/play/$mode'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,11 +98,19 @@ export interface RootRouteChildren {
   LeaderboardRoute: typeof LeaderboardRoute
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
+  SpectateRoute: typeof SpectateRoute
   PlayModeRoute: typeof PlayModeRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/spectate': {
+      id: '/spectate'
+      path: '/spectate'
+      fullPath: '/spectate'
+      preLoaderRoute: typeof SpectateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -124,6 +154,7 @@ const rootRouteChildren: RootRouteChildren = {
   LeaderboardRoute: LeaderboardRoute,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
+  SpectateRoute: SpectateRoute,
   PlayModeRoute: PlayModeRoute,
 }
 export const routeTree = rootRouteImport
