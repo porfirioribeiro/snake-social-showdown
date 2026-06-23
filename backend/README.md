@@ -2,19 +2,45 @@
 
 FastAPI implementation of `../openapi.yaml` with an in-memory store.
 
-### Run
+### Setup
 
 ```sh
 uv sync
+```
+
+Use `--dev` when you want the test dependencies too:
+
+```sh
+uv sync --dev
+```
+
+### Run
+
+```sh
 uv run python main.py
 ```
 
-The API is served under `/api`.
+The API is served under `/api` at `http://localhost:8000`.
+
+FastAPI also serves:
+
+- Swagger UI: `http://localhost:8000/docs`
+- OpenAPI JSON: `http://localhost:8000/openapi.json`
 
 ### Test
 
 ```sh
 uv run pytest
+```
+
+### Check
+
+Run the full backend check before committing:
+
+```sh
+uv sync --dev
+uv run pytest
+uv run python -m compileall app tests
 ```
 
 ### Seed data
