@@ -3,7 +3,7 @@ IMAGE_NAME ?= snake-social-showdown
 PORT ?= 8000
 DB_PATH ?= $(CURDIR)/backend/snake.db
 
-.PHONY: install backend frontend dev backend-tests frontend-tests test test-integration build docker-build docker-run docker
+.PHONY: install backend frontend dev backend-tests frontend-tests test test-integration build postgres docker-build docker-run docker
 
 install:
 	cd backend && uv sync --dev
@@ -31,6 +31,16 @@ test-integration:
 
 build:
 	cd frontend && npm run build
+
+postgres:
+	$(CONTAINER) run -id \
+		--name snake-db \
+		-e POSTGRES_USER=snakesocial \
+		-e POSTGRES_PASSWORD=snakesocial \
+		-e POSTGRES_DB=snakesocial \
+		-p 5432:5432 \
+		-v snake_pgdata:/var/lib/postgresql/data \
+		postgres:16-alpine
 
 docker-build:
 	$(CONTAINER) build -t $(IMAGE_NAME) .
